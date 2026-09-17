@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>اسکن زمین</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:Tahoma,sans-serif; background:#0e1512; color:#eaf3ee; }
+  #map { height: 45vh; width: 100%; }
+  .panel { padding: 14px 16px; }
+  .row { display:flex; gap:10px; align-items:center; margin-bottom:10px; }
+  label { font-size:13px; color:#9fcbb5; min-width:70px; }
+  input[type=text], input[type=number] { flex:1; padding:10px; border-radius:8px; border:1px solid #23443a; background:#132621; color:#eaf3ee; font-size:14px; }
+  input[type=range] { flex:1; }
+  button { width:100%; padding:14px; border:none; border-radius:10px; background:#1d9e75; color:#fff; font-size:16px; font-weight:bold; }
+  button:disabled { background:#3a5c50; }
+  #status { font-size:13px; color:#9fcbb5; margin-top:8px; min-height:18px; white-space:pre-line; }
+  .maps { display:flex; flex-direction:column; gap:12px; padding:0 16px 24px; }
+  .maps canvas { width:100%; border-radius:10px; border:1px solid #23443a; }
+  .cap { font-size:13px; color:#9fcbb5; margin:6px 0 2px; }
+  .apikeyRow { display:none; }
+  .apikeyRow.show { display:flex; }
+  a { color:#5dcaa5; }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div class="panel">
+  <div class="row apikeyRow" id="apikeyRow">
+    <label>کلید API</label>
+    <input type="text" id="apikey" placeholder="کلید رایگان OpenTopography">
+  </div>
+  <div class="row">
+    <label>شعاع (کیلومتر)</label>
+    <input type="range" id="radius" min="1" max="20" value="5">
+    <span id="radiusVal">5</span>
+  </div>
+  <div class="row">
+    <label>مختصات</label>
+    <input type="text" id="coords" readonly placeholder="روی نقشه ضربه بزنید">
+  </div>
+  <button id="scanBtn">اسکن کن</button>
+  <div id="status"></div>
+  <div class="cap" style="margin-top:10px">
+    کلید رایگان: <a href="https://portal.opentopography.org/myopentopo" target="_blank">portal.opentopography.org/myopentopo</a>
+  </div>
+</div>
+
+<div class="maps" id="results"></div>
+
+<script>
+const map = L.map('map').setView([32.4, 53.7], 6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '' }).addTo(map);
+let marker = null;
+let picked = null;
+
+map.on('click', e => {
+  picked = e.latlng;
+  if (marker) marker.setLatLng(picked); else marker = L.marker(picked).addTo(map);
+  document.getElementById('coords').value = picked.lat.toFixed(5) + ', ' + picked.lng.toFixed(5);
+});
+
+const radiusEl = document.getElementById('radius');
+radiusEl.addEventListener('input', () => document.getElementById('radiusVal').textContent = radiusEl.value);
+
+const KEY_STORAGE = 'forestscan_apikey';
+const apikeyRow = document.getElementById('apikeyRow');
+const apikeyInput = document.getElementById('apikey');
+const savedKey = localStorage.getItem(KEY_STORAGE);
+if (savedKey) { apikeyInput.value = savedKey; } else { apikeyRow.classList.add('show'); }
+
+function setStatus(t) { document.getElementById('status').textContent = t; }
+
+function bboxFromCenter(lat, lon, radiusKm) {
+  const dlat = radiusKm / 111.0;
+  const dlon = radiusKm / (111.0 * Math.cos(lat * Math.PI / 180));
+  return { south: lat - dlat, north: lat + dlat, west: lon - dlon, east: lon + dlon };
+}
+
+async function fetchDem(bbox, apiKey) {
+  const url = new URL('https://portal.opentopography.org/API/globaldem');
+  url.searchParams.set('demtype', 'COP30');
+  url.searchParams.set('south', bbox.south);
+  url.searchParams.set('north', bbox.north);
+  url.searchParams.set('west', bbox.west);
+  url.searchParams.set('east', bbox.east);
+  url.searchParams.set('outputFormat', 'GTiff');
+  url.searchParams.set('API_Key', apiKey);
+  const res = await fetch(url.toString());
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error('دانلود ناموفق (کد ' + res.status + '): ' + txt.slice(0, 150));
+  }
+  return await res.arrayBuffer();
+}
+
+async function loadDem(buffer) {
+  const tiff = await GeoTIFF.fromArrayBuffer(buffer);
+  const image = await tiff.getImage();
+  const width = image.getWidth();
+  const height = image.getHeight();
+  const rasters = await image.readRasters();
+  const data = rasters[0];
+  const arr = new Float64Array(width * height);
+  for (let i = 0; i < arr.length; i++) {
+    let v = data[i];
+    if (v < -1000 || v > 9000) v = NaN;
+    arr[i] = v;
+  }
+  return { arr, width, height };
+}
+
+function boxBlur(arr, w, h, radius) {
+  const out = new Float64Array(w * h);
+  const tmp = new Float64Array(w * h);
+  const mean = arr.reduce((a, b) => a + (isNaN(b) ? 0 : b), 0) / arr.length;
+  const src = Float64Array.from(arr, v => isNaN(v) ? mean : v);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let sum = 0, count = 0;
+      for (let dx = -radius; dx <= radius; dx++) {
+        const xx = x + dx;
+        if (xx >= 0 && xx < w) { sum += src[y * w + xx]; count++; }
+      }
+      tmp[y * w + x] = sum / count;
+    }
+  }
+  for (let x = 0; x < w; x++) {
+    for (let y = 0; y < h; y++) {
+      let sum = 0, count = 0;
+      for (let dy = -radius; dy <= radius; dy++) {
+        const yy = y + dy;
+        if (yy >= 0 && yy < h) { sum += tmp[yy * w + x]; count++; }
+      }
+      out[y * w + x] = sum / count;
+    }
+  }
+  return out;
+}
+
+function localReliefModel(arr, w, h) {
+  const smooth = boxBlur(arr, w, h, 8);
+  const lrm = new Float64Array(w * h);
+  const mean = arr.reduce((a, b) => a + (isNaN(b) ? 0 : b), 0) / arr.length;
+  for (let i = 0; i < arr.length; i++) {
+    const v = isNaN(arr[i]) ? mean : arr[i];
+    lrm[i] = v - smooth[i];
+  }
+  return lrm;
+}
+
+function drawGray(canvas, arr, w, h) {
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(w, h);
+  let min = Infinity, max = -Infinity;
+  for (const v of arr) { if (v < min) min = v; if (v > max) max = v; }
+  const range = (max - min) || 1;
+  for (let i = 0; i < arr.length; i++) {
+    const g = Math.round(((arr[i] - min) / range) * 255);
+    img.data[i * 4] = g; img.data[i * 4 + 1] = g; img.data[i * 4 + 2] = g; img.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+function drawDiverging(canvas, arr, w, h) {
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(w, h);
+  const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+  const std = Math.sqrt(arr.reduce((a, b) => a + (b - mean) ** 2, 0) / arr.length) || 1;
+  const lim = std * 3;
+  for (let i = 0; i < arr.length; i++) {
+    const t = Math.max(-1, Math.min(1, arr[i] / lim));
+    let r, g, b;
+    if (t < 0) { r = 30 + (1 + t) * 80; g = 60 + (1 + t) * 80; b = 160; }
+    else { r = 200; g = 90 - t * 60; b = 40 - t * 20; }
+    img.data[i * 4] = r; img.data[i * 4 + 1] = g; img.data[i * 4 + 2] = b; img.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  return { mean, std };
+}
+
+function drawAnomalies(canvas, grayArr, lrmArr, w, h, zThresh) {
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(w, h);
+  let min = Infinity, max = -Infinity;
+  for (const v of grayArr) { if (v < min) min = v; if (v > max) max = v; }
+  const range = (max - min) || 1;
+  const mean = lrmArr.reduce((a, b) => a + b, 0) / lrmArr.length;
+  const std = Math.sqrt(lrmArr.reduce((a, b) => a + (b - mean) ** 2, 0) / lrmArr.length) || 1;
+  let count = 0;
+  for (let i = 0; i < grayArr.length; i++) {
+    const g = Math.round(((grayArr[i] - min) / range) * 255);
+    const z = (lrmArr[i] - mean) / std;
+    if (Math.abs(z) > zThresh) {
+      img.data[i * 4] = 226; img.data[i * 4 + 1] = 40; img.data[i * 4 + 2] = 40;
+      count++;
+    } else {
+      img.data[i * 4] = g; img.data[i * 4 + 1] = g; img.data[i * 4 + 2] = g;
+    }
+    img.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  return count;
+}
+
+document.getElementById('scanBtn').addEventListener('click', async () => {
+  const apiKey = apikeyInput.value.trim();
+  if (!apiKey) { setStatus('کلید API رو وارد کنید.'); apikeyRow.classList.add('show'); return; }
+  if (!picked) { setStatus('اول روی نقشه ضربه بزنید تا نقطه انتخاب بشه.'); return; }
+  localStorage.setItem(KEY_STORAGE, apiKey);
+  apikeyRow.classList.remove('show');
+
+  const radiusKm = parseFloat(radiusEl.value);
+  const btn = document.getElementById('scanBtn');
+  btn.disabled = true;
+  document.getElementById('results').innerHTML = '';
+
+  try {
+    setStatus('در حال دانلود مدل ارتفاعی...');
+    const bbox = bboxFromCenter(picked.lat, picked.lng, radiusKm);
+    const buffer = await fetchDem(bbox, apiKey);
+
+    setStatus('در حال پردازش...');
+    const { arr, width, height } = await loadDem(buffer);
+    const lrm = localReliefModel(arr, width, height);
+
+    const results = document.getElementById('results');
+
+    const c1 = document.createElement('canvas');
+    results.innerHTML += '<div class="cap">۱. مدل زمین</div>';
+    results.appendChild(c1);
+    drawGray(c1, arr, width, height);
+
+    const capLrm = document.createElement('div'); capLrm.className = 'cap'; capLrm.textContent = '۲. برجستگی محلی';
+    results.appendChild(capLrm);
+    const c2 = document.createElement('canvas');
+    results.appendChild(c2);
+    drawDiverging(c2, lrm, width, height);
+
+    const capAnom = document.createElement('div'); capAnom.className = 'cap'; capAnom.textContent = '۳. نقاط ناهنجاری';
+    results.appendChild(capAnom);
+    const c3 = document.createElement('canvas');
+    results.appendChild(c3);
+    const count = drawAnomalies(c3, arr, lrm, width, height, 2.5);
+
+    setStatus(count + ' نقطه ناهنجاری شناسایی شد. (دقت داده ۳۰ متر — برای الگوهای بزرگ، نه اشیای کوچک)');
+  } catch (err) {
+    setStatus('خطا: ' + err.message + '\nاگه پیام مربوط به CORS بود، به‌جای فراخوانی مستقیم باید از یک پروکسی (Cloudflare Worker) عبور کنه — بگید تا اون رو هم بسازم.');
+  } finally {
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
