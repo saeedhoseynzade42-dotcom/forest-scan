@@ -1,0 +1,1394 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" id="htmlRoot">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>اسکن زمین</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:Tahoma,sans-serif; background:#0e1512; color:#eaf3ee; }
+  #map { height: 52vh; width: 100%; }
+  button.small.on { background:#e64040; }
+  .markRow { display:flex; gap:8px; align-items:center; padding:4px 12px; font-size:13px; direction:ltr; }
+  .markRow span { flex:1; }
+  .markRow a { color:#5dcaa5; font-size:12px; }
+  .markRow button { padding:6px 10px; font-size:12px; }
+  .hillshadeLayer { mix-blend-mode: multiply; }
+  .panel { padding: 14px 16px; }
+  .row { display:flex; gap:8px; align-items:center; margin-bottom:10px; }
+  label { font-size:13px; color:#9fcbb5; min-width:66px; }
+  input[type=text], input[type=number] { flex:1; padding:10px; border-radius:8px; border:1px solid #23443a; background:#132621; color:#eaf3ee; font-size:14px; min-width:0; }
+  input[type=range] { flex:1; }
+  button { padding:14px; border:none; border-radius:10px; background:#1d9e75; color:#fff; font-size:16px; font-weight:bold; }
+  button.full { width:100%; }
+  button.small { padding:10px 14px; font-size:14px; background:#23443a; }
+  button:disabled { background:#3a5c50; }
+  #status { font-size:13px; color:#9fcbb5; margin-top:8px; min-height:18px; white-space:pre-line; }
+  .maps { display:flex; flex-direction:column; gap:4px; padding:0 16px 24px; }
+  .mapCard { border:1px solid #23443a; border-radius:12px; overflow:hidden; margin-bottom:14px; background:#0b100e; }
+  .mapCard canvas { width:100%; display:block; }
+  .cap { font-size:14px; font-weight:bold; padding:10px 12px 4px; }
+  .sub { font-size:12px; color:#9fcbb5; padding:0 12px 10px; }
+  .legend { display:flex; align-items:center; gap:8px; padding:0 12px 12px; font-size:11px; color:#cfe9dc; }
+  .legend .bar { flex:1; height:10px; border-radius:5px; }
+  .apikeyRow { display:flex; }
+  a { color:#5dcaa5; }
+  .searchRow { display:flex; gap:6px; padding:10px 16px 0; }
+  .searchRow input { flex:1; }
+  .footer { padding:10px 16px 28px; font-size:11px; color:#6f9483; border-top:1px solid #1c2f28; margin-top:6px; line-height:1.8; }
+  .suggestions { margin:0 16px; background:#132621; border:1px solid #23443a; border-radius:8px; overflow:hidden; }
+  .suggestions div { padding:10px; font-size:13px; border-bottom:1px solid #1c2f28; }
+  .suggestions div:last-child { border-bottom:none; }
+  .langRow { display:flex; gap:6px; padding:10px 16px 0; flex-wrap:wrap; }
+  .langBtn { padding:7px 12px; font-size:12px; font-weight:normal; border-radius:20px; background:#132621; border:1px solid #23443a; color:#9fcbb5; width:auto; }
+  .langBtn.active { background:#1d9e75; color:#fff; border-color:#1d9e75; }
+  select { flex:1; padding:10px; border-radius:8px; border:1px solid #23443a; background:#132621; color:#eaf3ee; font-size:14px; min-width:0; }
+  .ctrls { padding:10px 12px 0; }
+  .cmpWrap { position:relative; direction:ltr; }
+  .cmpMap { height:min(62vh,420px); width:100%; background:#0b100e; touch-action:none; }
+  .cmpDivider { position:absolute; top:0; bottom:0; width:2px; margin-left:-1px; background:#fff; z-index:1001; pointer-events:none; box-shadow:0 0 0 1px rgba(0,0,0,.35); }
+  .cmpRange { position:absolute; left:0; top:50%; width:100%; height:44px; margin:-22px 0 0; z-index:1002; pointer-events:none; -webkit-appearance:none; appearance:none; background:transparent; }
+  .cmpRange::-webkit-slider-runnable-track { background:transparent; height:44px; }
+  .cmpRange::-moz-range-track { background:transparent; height:44px; }
+  .cmpRange::-webkit-slider-thumb { -webkit-appearance:none; pointer-events:auto; width:44px; height:44px; border-radius:50%; background:#1d9e75; border:3px solid #fff; box-shadow:0 1px 6px rgba(0,0,0,.5); }
+  .cmpRange::-moz-range-thumb { pointer-events:auto; width:38px; height:38px; border-radius:50%; background:#1d9e75; border:3px solid #fff; box-shadow:0 1px 6px rgba(0,0,0,.5); }
+  .cmpTag { position:absolute; bottom:8px; z-index:1001; padding:3px 9px; font-size:11px; border-radius:10px; background:rgba(11,16,14,.78); color:#eaf3ee; pointer-events:none; }
+  .cmpTag.l { left:8px; } .cmpTag.r { right:8px; }
+  .hero { padding:14px 16px 4px; }
+  .hero h1 { font-size:17px; margin:0 0 8px; color:#eaf3ee; }
+  .hero svg { width:100%; height:auto; display:block; background:#0b100e; border-radius:12px; border:1px solid #23443a; }
+  body { padding-bottom: 130px; }
+  .hero .heroSub { font-size:12.5px; color:#9fcbb5; line-height:1.8; margin:0; }
+  .scanBar { position:fixed; left:0; right:0; bottom:0; z-index:2000; background:rgba(14,21,18,.97); border-top:1px solid #23443a; padding:8px 16px calc(8px + env(safe-area-inset-bottom)); }
+  .scanBar #status { margin:0 0 6px; max-height:4.6em; overflow:auto; min-height:0; }
+  details.adv { border:1px solid #23443a; border-radius:10px; padding:8px 12px; margin-bottom:12px; background:#0b100e; }
+  details.adv summary { font-size:14px; color:#9fcbb5; cursor:pointer; padding:4px 0; }
+  details.adv[open] summary { margin-bottom:10px; }
+  .badge { display:inline-block; padding:5px 11px; border-radius:14px; font-size:12px; margin:0 12px 8px; line-height:1.6; }
+  .badge.good { background:#1d5e45; color:#dff5ea; }
+  .badge.warn { background:#6b4a12; color:#ffe9b8; }
+  .sumLine { font-size:13px; padding:0 12px 8px; line-height:1.8; }
+  .fRow { display:flex; align-items:center; gap:8px; padding:9px 12px; border-top:1px solid #1c2f28; }
+  .fRow .fSym { font-size:18px; }
+  .fRow .fTxt { flex:1; font-size:13px; line-height:1.7; }
+  .fRow .fTxt small { color:#9fcbb5; font-size:11.5px; }
+  .fRow button { padding:8px 11px; font-size:13px; }
+  .lv { font-size:11px; padding:1px 8px; border-radius:9px; background:#23443a; margin-inline-start:6px; font-weight:normal; }
+  .lv.l3 { background:#7a1f1f; } .lv.l2 { background:#6b4a12; }
+  .fm { width:28px; height:28px; border-radius:50%; border:3px solid; background:rgba(0,0,0,.6); color:#fff; font:bold 11px/22px sans-serif; text-align:center; }
+  .fm.hole { border-color:#ff3b30; } .fm.mound { border-color:#ffb020; } .fm.linear { border-color:#3aa0ff; border-radius:7px; }
+  .legendRow { display:flex; gap:14px; flex-wrap:wrap; padding:0 12px 12px; font-size:12px; color:#cfe9dc; }
+</style>
+</head>
+<body>
+
+<div class="langRow" id="langRow">
+  <button class="langBtn active" data-lang="fa">فارسی</button>
+  <button class="langBtn" data-lang="en">English</button>
+  <button class="langBtn" data-lang="tr">Türkçe</button>
+  <button class="langBtn" data-lang="ar">العربية</button>
+</div>
+
+<div class="hero">
+  <h1 data-i18n="heroTitle">اسکن زمین</h1>
+  <p class="heroSub" data-i18n="heroSub"></p>
+</div>
+
+<div class="searchRow">
+  <input type="text" id="placeSearch" data-i18n-ph="searchPh" placeholder="اسم منطقه یا شهر رو تایپ کنید...">
+  <button class="small" id="searchBtn" data-i18n="searchBtn">جستجو</button>
+</div>
+<div class="suggestions" id="suggestions" style="display:none"></div>
+
+<div id="map"></div>
+
+<div class="panel">
+  <details class="adv" id="settings">
+    <summary data-i18n="settingsTitle">⚙️ تنظیمات</summary>
+    <div class="row apikeyRow" id="apikeyRow">
+      <label data-i18n="apikeyLabel">کلید API</label>
+      <input type="text" id="apikey" data-i18n-ph="apikeyPh" placeholder="کلید رایگان OpenTopography" onfocus="this.select()">
+      <button type="button" class="small" id="clearKeyBtn" data-i18n="clearBtn">پاک کردن</button>
+    </div>
+    <div class="row">
+      <label>DEM</label>
+      <select id="demType"><option value="COP30">Copernicus 30m</option><option value="AW3D30">ALOS AW3D30</option><option value="NASADEM">NASADEM</option></select>
+    </div>
+    <div class="cap" style="font-size:12px;font-weight:normal;color:#9fcbb5;padding:0">
+      <span data-i18n="apikeyLinkLabel">کلید رایگان:</span> <a href="https://portal.opentopography.org/myopentopo" target="_blank">portal.opentopography.org/myopentopo</a>
+    </div>
+  </details>
+  <div class="row">
+    <label data-i18n="radiusLabel">شعاع (کیلومتر)</label>
+    <input type="range" id="radius" min="0.5" max="20" step="0.5" value="5">
+    <span id="radiusVal">5</span>
+  </div>
+  <div class="row">
+    <label data-i18n="coordLabel">مختصات</label>
+    <input type="text" inputmode="text" id="coordInput" dir="ltr" data-i18n-ph="coordPh" placeholder="60.47095, -103.28889" autocomplete="off">
+  </div>
+</div>
+
+<div class="scanBar">
+  <div id="status"></div>
+  <button class="full" id="scanBtn" data-i18n="scanBtn">اسکن کن</button>
+</div>
+
+<div class="maps" id="results"></div>
+
+<script>
+const I18N = {
+  fa: { dir:'rtl', title:'اسکن زمین',
+    markBtn:'📍 علامت‌گذاری', markHint:'علامت‌گذاری روشنه. روی جای دخمه یا هر نقطه‌ای بزنید تا حلقه‌ی قرمز بذاره.', enhLabel:'وضوح ماهواره', goBtn:'برو',
+    layMap:'نقشه', layMapSat:'ماهواره', layTopo:'توپوگرافی', layHill:'سایه‌روشن زمین', layNames:'نام مکان‌ها',
+    cShade:'سایه‌روشن روی ماهواره', 
+    cmpTitle:'مقایسه: ماهواره در برابر نمای ارتفاعی', cmpSub:'دایره سبز وسط رو بکشید. چپ: تصویر ماهواره · راست: نقشه ارتفاعی با سایه‌روشن',
+    satTag:'ماهواره', reliefTag:'ارتفاع', exagLabel:'اغراق ارتفاع', colorLabel:'رنگ‌بندی',
+    cElev:'بر اساس ارتفاع', cLrm:'بر اساس برجستگی محلی', cGray:'خاکستری', saveBtn:'ذخیره تصویر',
+    satAttr:'تصویر ماهواره: Esri World Imagery',
+    srcHi:'منبع داده: USGS 3DEP (لیدار تا ۱ متر، بسته به منطقه) — رایگان',
+    noteHi:'داده با وضوح بالاست: ساختارهای ریز مثل دیوار، خندق و تپه‌های کوچک می‌تونن دیده بشن. برای جزئیات کامل شعاع رو حدود ۱ کیلومتر یا کمتر بذارید.',
+    hiOk:'داده لیدار دانلود شد.', hiFail:'لیدار در این منطقه در دسترس نبود؛ از داده ۳۰ متری استفاده می‌شه.',
+    heroTitle:'همین‌طوری کار می‌کنه: لایه جنگل جدا می‌شه و فقط زمین می‌مونه',
+    heroSvgTitle:'نمونه فیلتر کردن پوشش جنگل برای رسیدن به سطح زمین',
+    heroLegend:'سبز: بازگشت از تاج · روشن: بازگشت از زمین',
+    heroFilter:'فیلتر: فقط زمین', heroAnomaly1:'ناهنجاری', heroAnomaly2:'(حفره/فلز)',
+    searchPh:'اسم منطقه یا شهر رو تایپ کنید...', searchBtn:'جستجو',
+    apikeyLabel:'کلید API', apikeyPh:'کلید رایگان OpenTopography', clearBtn:'پاک کردن',
+    radiusLabel:'شعاع (کیلومتر)', latLabel:'عرض جغرافیایی', lonLabel:'طول جغرافیایی',
+    scanBtn:'اسکن کن', apikeyLinkLabel:'کلید رایگان:',
+    noApikey:'کلید API رو وارد کنید.', noPoint:'اول یه نقطه رو انتخاب کنید (نقشه، جستجو یا مختصات دستی).',
+    downloading:'در حال دانلود مدل ارتفاعی...', processing:'در حال پردازش...',
+    map1title:'۱. مدل رنگی زمین', map1sub:'سبز = پست‌تر، قهوه‌ای/سفید = مرتفع‌تر — سایه‌روشن برای حس عمق',
+    map2title:'۲. برجستگی محلی', map2sub:'آبی = فرورفتگی نسبت به اطراف، قرمز = برجستگی نسبت به اطراف',
+    legendLow:'فرورفتگی', legendHigh:'برجستگی', meters:'متر',
+    map3subPrefix:'۳. نقاط ناهنجاری (', map3subSuffix:' مورد)',
+    map3sub:'دایره قرمز = انحراف غیرعادی از سطح اطراف — کاندید سازه/تغییر شکل زمین',
+    footerCoord:'مختصات مرکز:', footerRadius:'شعاع:', footerKm:'کیلومتر', footerPixel:'اندازه هر پیکسل: تقریباً', footerMeters:'متر',
+    footerSource:'منبع داده: Copernicus DEM 30m (رایگان، OpenTopography)',
+    footerNote:'توجه: دقت مکانی ۳۰ متر — برای الگوهای بزرگ (تپه، تغییر شکل زمین)، نه اشیای کوچک مثل حفره یا فلز.',
+    doneStatus:' نقطه ناهنجاری شناسایی شد.', errStatus:'خطا: ', corsHint:'\nهمه راه‌های اتصال (مستقیم و پروکسی‌ها) شکست خوردن. یه بار دیگه امتحان کنید یا شعاع رو کمتر بزنید.',
+    searching:'در حال جستجو...', noResults:'چیزی پیدا نشد.', searchErr:'خطا در جستجو.',
+    noData:'داده ارتفاعی معتبری برای این منطقه پیدا نشد (احتمالاً دریا یا خطای مرز). منطقه دیگه‌ای امتحان کنید.',
+    keyErr:'کلید API معتبر نیست یا رد شد. دکمه «پاک کردن» رو بزنید و کلید رو دوباره از سایت OpenTopography کپی کنید.', reqErr:'درخواست از طرف سرور رد شد. یه نقطه یا شعاع دیگه امتحان کنید.',
+    networkErr:'اتصال به سرور برقرار نشد. اینترنت‌تون رو چک کنید یا چند دقیقه دیگه امتحان کنید.'
+  },
+  en: { dir:'ltr', title:'Ground Scan',
+    markBtn:'📍 Mark spots', markHint:'Marking is on. Tap a spot to drop a red ring.', enhLabel:'Sat. clarity', goBtn:'Go',
+    layMap:'Map', layMapSat:'Satellite', layTopo:'Topographic', layHill:'Terrain shading', layNames:'Place names',
+    cShade:'Shading over satellite', 
+    cmpTitle:'Compare: satellite vs. relief view', cmpSub:'Drag the green circle. Left: satellite image · Right: hillshaded elevation map',
+    satTag:'Satellite', reliefTag:'Relief', exagLabel:'Exaggeration', colorLabel:'Colors',
+    cElev:'By elevation', cLrm:'By local relief', cGray:'Grayscale', saveBtn:'Save image',
+    satAttr:'Satellite imagery: Esri World Imagery',
+    srcHi:'Data source: USGS 3DEP (lidar down to 1 m, depending on area) — free',
+    noteHi:'High-resolution data: fine structures like walls, ditches and small mounds can show up. For full detail use a radius of about 1 km or less.',
+    hiOk:'Lidar data downloaded.', hiFail:'Lidar was not available here; using the 30 m data instead.',
+    heroTitle:'How it works: the forest layer is filtered out, leaving only the ground',
+    heroSvgTitle:'Example of filtering forest cover to reach ground level',
+    heroLegend:'Green: canopy returns · Light: ground returns',
+    heroFilter:'Filter: ground only', heroAnomaly1:'Anomaly', heroAnomaly2:'(void/metal)',
+    searchPh:'Type a place or city name...', searchBtn:'Search',
+    apikeyLabel:'API Key', apikeyPh:'Free OpenTopography key', clearBtn:'Clear',
+    radiusLabel:'Radius (km)', latLabel:'Latitude', lonLabel:'Longitude',
+    scanBtn:'Scan', apikeyLinkLabel:'Free key:',
+    noApikey:'Please enter your API key.', noPoint:'Pick a point first (map, search, or manual coordinates).',
+    downloading:'Downloading elevation model...', processing:'Processing...',
+    map1title:'1. Colored terrain model', map1sub:'Green = lower, brown/white = higher — hillshaded for depth',
+    map2title:'2. Local relief', map2sub:'Blue = lower than surroundings, red = higher than surroundings',
+    legendLow:'Depression', legendHigh:'Elevation', meters:'m',
+    map3subPrefix:'3. Anomaly points (', map3subSuffix:')',
+    map3sub:'Red dot = abnormal deviation from surrounding surface — candidate structure/terrain change',
+    footerCoord:'Center coordinates:', footerRadius:'Radius:', footerKm:'km', footerPixel:'Pixel size: approx.', footerMeters:'m',
+    footerSource:'Data source: Copernicus DEM 30m (free, OpenTopography)',
+    footerNote:'Note: 30m resolution — suited to large patterns (mounds, terrain change), not small objects like voids or metal.',
+    doneStatus:' anomaly points detected.', errStatus:'Error: ', corsHint:'\nAll connection routes (direct and proxies) failed. Try again, or use a smaller radius.',
+    searching:'Searching...', noResults:'No results found.', searchErr:'Search error.',
+    noData:'No valid elevation data found for this area (possibly sea or a boundary issue). Try a different area.',
+    keyErr:'The API key is invalid or was rejected. Tap Clear and paste the key again from OpenTopography.', reqErr:'The server rejected the request. Try a different point or radius.',
+    networkErr:'Could not reach the server. Check your connection or try again in a few minutes.'
+  },
+  tr: { dir:'ltr', title:'Zemin Taraması',
+    markBtn:'📍 İşaretle', markHint:'İşaretleme açık. Kırmızı halka koymak için bir noktaya dokunun.', enhLabel:'Uydu netliği', goBtn:'Git',
+    layMap:'Harita', layMapSat:'Uydu', layTopo:'Topografik', layHill:'Arazi gölgelendirme', layNames:'Yer adları',
+    cShade:'Uydu üzerinde gölgelendirme', 
+    cmpTitle:'Karşılaştırma: uydu ve kabartma görünümü', cmpSub:'Yeşil daireyi sürükleyin. Sol: uydu görüntüsü · Sağ: gölgelendirmeli yükseklik haritası',
+    satTag:'Uydu', reliefTag:'Kabartma', exagLabel:'Abartma', colorLabel:'Renkler',
+    cElev:'Yüksekliğe göre', cLrm:'Yerel rölyefe göre', cGray:'Gri tonlama', saveBtn:'Görüntüyü kaydet',
+    satAttr:'Uydu görüntüsü: Esri World Imagery',
+    srcHi:'Veri kaynağı: USGS 3DEP (bölgeye göre 1 m\'ye kadar lidar) — ücretsiz',
+    noteHi:'Yüksek çözünürlüklü veri: duvar, hendek ve küçük tümsek gibi ince yapılar görülebilir. Tam ayrıntı için yarıçapı yaklaşık 1 km veya daha az seçin.',
+    hiOk:'Lidar verisi indirildi.', hiFail:'Bu bölgede lidar yok; 30 m veri kullanılıyor.',
+    heroTitle:'Nasıl çalışır: orman katmanı süzülür, sadece zemin kalır',
+    heroSvgTitle:'Zemin seviyesine ulaşmak için orman örtüsünü süzme örneği',
+    heroLegend:'Yeşil: tepe dönüşleri · Açık: zemin dönüşleri',
+    heroFilter:'Filtre: sadece zemin', heroAnomaly1:'Anomali', heroAnomaly2:'(boşluk/metal)',
+    searchPh:'Bir yer veya şehir adı yazın...', searchBtn:'Ara',
+    apikeyLabel:'API Anahtarı', apikeyPh:'Ücretsiz OpenTopography anahtarı', clearBtn:'Temizle',
+    radiusLabel:'Yarıçap (km)', latLabel:'Enlem', lonLabel:'Boylam',
+    scanBtn:'Tara', apikeyLinkLabel:'Ücretsiz anahtar:',
+    noApikey:'Lütfen API anahtarınızı girin.', noPoint:'Önce bir nokta seçin (harita, arama veya manuel koordinat).',
+    downloading:'Yükseklik modeli indiriliyor...', processing:'İşleniyor...',
+    map1title:'1. Renkli arazi modeli', map1sub:'Yeşil = alçak, kahverengi/beyaz = yüksek — derinlik için gölgelendirme',
+    map2title:'2. Yerel rölyef', map2sub:'Mavi = çevresine göre alçak, kırmızı = çevresine göre yüksek',
+    legendLow:'Çukur', legendHigh:'Tümsek', meters:'m',
+    map3subPrefix:'3. Anomali noktaları (', map3subSuffix:')',
+    map3sub:'Kırmızı nokta = çevresel yüzeyden anormal sapma — olası yapı/arazi değişimi',
+    footerCoord:'Merkez koordinatları:', footerRadius:'Yarıçap:', footerKm:'km', footerPixel:'Piksel boyutu: yaklaşık', footerMeters:'m',
+    footerSource:'Veri kaynağı: Copernicus DEM 30m (ücretsiz, OpenTopography)',
+    footerNote:'Not: 30m çözünürlük — büyük desenler için uygundur (tümsek, arazi değişimi), boşluk veya metal gibi küçük nesneler için değil.',
+    doneStatus:' anomali noktası tespit edildi.', errStatus:'Hata: ', corsHint:'\nTüm bağlantı yolları (doğrudan ve proxy) başarısız oldu. Tekrar deneyin veya yarıçapı küçültün.',
+    searching:'Aranıyor...', noResults:'Sonuç bulunamadı.', searchErr:'Arama hatası.',
+    noData:'Bu alan için geçerli yükseklik verisi bulunamadı (deniz veya sınır sorunu olabilir). Başka bir alan deneyin.',
+    keyErr:"API anahtarı geçersiz veya reddedildi. Temizle'ye dokunup anahtarı OpenTopography'den tekrar yapıştırın.", reqErr:'Sunucu isteği reddetti. Başka bir nokta veya yarıçap deneyin.',
+    networkErr:'Sunucuya ulaşılamadı. Bağlantınızı kontrol edin veya birkaç dakika sonra tekrar deneyin.'
+  },
+  ar: { dir:'rtl', title:'مسح الأرض',
+    markBtn:'📍 تعليم', markHint:'وضع التعليم مفعّل. المس نقطة لوضع حلقة حمراء.', enhLabel:'وضوح القمر الصناعي', goBtn:'اذهب',
+    layMap:'خريطة', layMapSat:'قمر صناعي', layTopo:'طبوغرافية', layHill:'تظليل التضاريس', layNames:'أسماء الأماكن',
+    cShade:'تظليل فوق القمر الصناعي', 
+    cmpTitle:'مقارنة: القمر الصناعي مقابل عرض التضاريس', cmpSub:'اسحب الدائرة الخضراء. يسار: صورة القمر الصناعي · يمين: خريطة الارتفاع مع التظليل',
+    satTag:'قمر صناعي', reliefTag:'تضاريس', exagLabel:'المبالغة', colorLabel:'الألوان',
+    cElev:'حسب الارتفاع', cLrm:'حسب التضاريس المحلية', cGray:'رمادي', saveBtn:'حفظ الصورة',
+    satAttr:'صورة القمر الصناعي: Esri World Imagery',
+    srcHi:'مصدر البيانات: USGS 3DEP (ليدار حتى متر واحد حسب المنطقة) — مجاني',
+    noteHi:'بيانات عالية الدقة: قد تظهر هياكل صغيرة مثل الجدران والخنادق والتلال الصغيرة. للتفاصيل الكاملة استخدم نصف قطر نحو 1 كم أو أقل.',
+    hiOk:'تم تنزيل بيانات الليدار.', hiFail:'الليدار غير متاح هنا؛ سيتم استخدام بيانات 30 م.',
+    heroTitle:'هكذا يعمل: تتم إزالة طبقة الغابة ويبقى سطح الأرض فقط',
+    heroSvgTitle:'مثال على تصفية الغطاء الحرجي للوصول إلى سطح الأرض',
+    heroLegend:'أخضر: انعكاس من الأشجار · فاتح: انعكاس من الأرض',
+    heroFilter:'تصفية: الأرض فقط', heroAnomaly1:'شذوذ', heroAnomaly2:'(فراغ/معدن)',
+    searchPh:'اكتب اسم منطقة أو مدينة...', searchBtn:'بحث',
+    apikeyLabel:'مفتاح API', apikeyPh:'مفتاح OpenTopography المجاني', clearBtn:'مسح',
+    radiusLabel:'نصف القطر (كم)', latLabel:'خط العرض', lonLabel:'خط الطول',
+    scanBtn:'امسح', apikeyLinkLabel:'مفتاح مجاني:',
+    noApikey:'الرجاء إدخال مفتاح API.', noPoint:'اختر نقطة أولاً (الخريطة، البحث، أو إحداثيات يدوية).',
+    downloading:'جارٍ تنزيل نموذج الارتفاع...', processing:'جارٍ المعالجة...',
+    map1title:'١. نموذج التضاريس الملون', map1sub:'أخضر = أخفض، بني/أبيض = أعلى — تظليل لإحساس العمق',
+    map2title:'٢. التضاريس المحلية', map2sub:'أزرق = أخفض من المحيط، أحمر = أعلى من المحيط',
+    legendLow:'انخفاض', legendHigh:'ارتفاع', meters:'م',
+    map3subPrefix:'٣. نقاط الشذوذ (', map3subSuffix:')',
+    map3sub:'نقطة حمراء = انحراف غير طبيعي عن السطح المحيط — مرشح لهيكل/تغيّر تضاريسي',
+    footerCoord:'إحداثيات المركز:', footerRadius:'نصف القطر:', footerKm:'كم', footerPixel:'حجم البكسل: تقريباً', footerMeters:'م',
+    footerSource:'مصدر البيانات: Copernicus DEM 30م (مجاني، OpenTopography)',
+    footerNote:'ملاحظة: دقة ٣٠ متراً — مناسبة للأنماط الكبيرة (تلال، تغيّر تضاريسي)، وليس للأجسام الصغيرة كالفراغات أو المعادن.',
+    doneStatus:' نقطة شذوذ تم اكتشافها.', errStatus:'خطأ: ', corsHint:'\nفشلت كل مسارات الاتصال (المباشر والوسيط). حاول مرة أخرى أو استخدم نصف قطر أصغر.',
+    searching:'جارٍ البحث...', noResults:'لم يتم العثور على نتائج.', searchErr:'خطأ في البحث.',
+    noData:'لم يتم العثور على بيانات ارتفاع صالحة لهذه المنطقة (قد تكون بحراً أو مشكلة حدودية). جرّب منطقة أخرى.',
+    keyErr:'مفتاح API غير صالح أو تم رفضه. اضغط مسح والصق المفتاح مجدداً من OpenTopography.', reqErr:'رفض الخادم الطلب. جرّب نقطة أو نصف قطر آخر.',
+    networkErr:'تعذر الوصول إلى الخادم. تحقق من اتصالك أو حاول مرة أخرى لاحقاً.'
+  }
+};
+
+Object.assign(I18N.fa, {
+  heroTitle:'اسکن زمین: نمایش فرورفتگی و برجستگی‌های مشکوک',
+  heroSub:'این برنامه شکل زمین رو از روی داده ارتفاعی بررسی می‌کنه. جنگل رو حذف نمی‌کنه و فلز رو تشخیص نمی‌ده.',
+  settingsTitle:'⚙️ تنظیمات (کلید API و منبع داده)',
+  coordLabel:'مختصات', coordPh:'60.47095, -103.28889',
+  coordBad:'مختصات قابل فهم نبود. اینجوری بنویسید: 60.47095, -103.28889',
+  detecting:'در حال تحلیل شکل زمین...',
+  sumTitle:'خلاصه‌ی اسکن',
+  resHi:'وضوح بالا (حدود {m} متر): زمین لخت (لیدار)',
+  resLo:'وضوح پایین (حدود {m} متر): مدل سطح، شامل بالای درختان و ساختمان‌ها',
+  foundLine:'{n} مورد مشکوک: {h} حفره/فرورفتگی · {mo} برجستگی · {l} خط',
+  noneLine:'مورد قابل‌توجهی پیدا نشد.',
+  coarseWarn:'با این وضوح فقط چیزهای بزرگ‌تر از حدود {m} متر دیده می‌شن. حفره‌ی کوچک رو نمی‌شه تشخیص داد.',
+  forestWarn:'زیر جنگل، این داده بالای درختان رو می‌بینه و نه زمین. برای زمین لخت باید داده‌ی لیدار وجود داشته باشه.',
+  metalNote:'فلز از روی داده ارتفاعی قابل تشخیص نیست. برای فلز فقط فلزیاب یا مغناطیس‌سنج جواب می‌ده.',
+  hiCap:'برای وضوح بهتر لیدار، شعاع اسکن به {r} کیلومتر محدود شد.',
+  featTitle:'موارد مشکوک (به ترتیب قدرت)',
+  featSub:'«برو» رو بزنید تا روی نقشه‌ی بالا نشون بده. 📍 برای ذخیره‌ی نقطه.',
+  featBtn:'🎯 نشانه‌ها', goF:'برو',
+  typeHole:'حفره / فرورفتگی', typeMound:'برجستگی / تپه', typeLinear:'خط (خندق / دیوار / جاده)',
+  lvWeak:'ضعیف', lvMid:'متوسط', lvStrong:'قوی',
+  diam:'قطر', depth:'عمق', height:'ارتفاع', len:'طول', paired:'حفره کنار برجستگی',
+  mapDetTitle:'نقشه‌ی نشانه‌ها', mapDetSub:'روی نقشه‌ی رنگی ارتفاع، هر مورد مشکوک با شماره و علامت مشخص شده.',
+  legHole:'حفره/فرورفتگی', legMound:'برجستگی', legLinear:'خط',
+  doneFeat:'مورد مشکوک پیدا شد.'
+});
+Object.assign(I18N.en, {
+  heroTitle:'Ground Scan: suspicious pits and mounds',
+  heroSub:'This app analyses ground shape from elevation data. It does not remove forest and it cannot detect metal.',
+  settingsTitle:'⚙️ Settings (API key and data source)',
+  coordLabel:'Coordinates', coordPh:'60.47095, -103.28889',
+  coordBad:'Could not read the coordinates. Write them like: 60.47095, -103.28889',
+  detecting:'Analysing terrain shape...',
+  sumTitle:'Scan summary',
+  resHi:'High resolution (about {m} m): bare earth (lidar)',
+  resLo:'Low resolution (about {m} m): surface model, includes treetops and buildings',
+  foundLine:'{n} suspicious spots: {h} pits/depressions · {mo} mounds · {l} lines',
+  noneLine:'Nothing significant found.',
+  coarseWarn:'At this resolution only features larger than about {m} m show up. Small pits cannot be detected.',
+  forestWarn:'Under forest, this data shows the treetops, not the ground. Bare earth needs lidar data.',
+  metalNote:'Metal cannot be detected from elevation data. Only a metal detector or magnetometer can do that.',
+  hiCap:'For sharper lidar the scan radius was limited to {r} km.',
+  featTitle:'Suspicious spots (strongest first)',
+  featSub:'Tap Go to show it on the map above. 📍 saves the spot.',
+  featBtn:'🎯 Markers', goF:'Go',
+  typeHole:'Pit / depression', typeMound:'Mound / rise', typeLinear:'Line (ditch / wall / track)',
+  lvWeak:'weak', lvMid:'medium', lvStrong:'strong',
+  diam:'Diameter', depth:'Depth', height:'Height', len:'Length', paired:'pit next to a mound',
+  mapDetTitle:'Marker map', mapDetSub:'Each suspicious spot is marked with a number and symbol on the coloured elevation map.',
+  legHole:'pit/depression', legMound:'mound', legLinear:'line',
+  doneFeat:'suspicious spots found.'
+});
+Object.assign(I18N.tr, { heroTitle:'Zemin Taraması: şüpheli çukur ve tümsekler', heroSub:'Bu uygulama yükseklik verisinden arazi şeklini inceler. Ormanı kaldırmaz ve metali algılayamaz.' });
+Object.assign(I18N.ar, { heroTitle:'مسح الأرض: حفر وتلال مشبوهة', heroSub:'يحلل هذا التطبيق شكل الأرض من بيانات الارتفاع. لا يزيل الغابات ولا يكشف المعادن.' });
+['tr', 'ar'].forEach(l => { for (const k in I18N.en) if (!(k in I18N[l])) I18N[l][k] = I18N.en[k]; });
+
+function toEnglishDigits(str) {
+  const fa = '۰۱۲۳۴۵۶۷۸۹', ar = '٠١٢٣٤٥٦٧٨٩';
+  return str.replace(/[۰-۹٠-٩]/g, ch => {
+    const i = fa.indexOf(ch); if (i > -1) return i;
+    const j = ar.indexOf(ch); if (j > -1) return j;
+    return ch;
+  }).replace(/[،٫]/g, '.');
+}
+function normalizeInput(el) {
+  el.addEventListener('input', () => {
+    const cleaned = toEnglishDigits(el.value);
+    if (cleaned !== el.value) {
+      const pos = el.selectionStart;
+      el.value = cleaned;
+      try { el.setSelectionRange(pos, pos); } catch (e) {}
+    }
+  });
+}
+
+let currentLang = localStorage.getItem('forestscan_lang') || 'fa';
+
+function applyI18n(lang) {
+  const t = I18N[lang];
+  document.getElementById('htmlRoot').setAttribute('lang', lang);
+  document.getElementById('htmlRoot').setAttribute('dir', t.dir);
+  document.title = t.title;
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (t[key] !== undefined) el.textContent = t[key];
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+    const key = el.getAttribute('data-i18n-ph');
+    if (t[key] !== undefined) el.setAttribute('placeholder', t[key]);
+  });
+  document.querySelectorAll('.langBtn').forEach(b => b.classList.toggle('active', b.getAttribute('data-lang') === lang));
+  currentLang = lang;
+  localStorage.setItem('forestscan_lang', lang);
+}
+
+document.querySelectorAll('.langBtn').forEach(b => {
+  b.addEventListener('click', () => { applyI18n(b.getAttribute('data-lang')); if (typeof buildLayers === 'function' && typeof layersCtl !== 'undefined') buildLayers(); });
+});
+applyI18n(currentLang);
+
+const map = L.map('map', { maxZoom: 19, worldCopyJump: true }).setView([32.4, 53.7], 6);
+// Base layers + terrain shading + place names, so any spot is easy to find.
+const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
+const baseSat = L.tileLayer(ESRI + 'World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 18, maxZoom: 19, attribution: 'Esri, Maxar, Earthstar Geographics' });
+const baseOsm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxNativeZoom: 19, maxZoom: 19, attribution: '© OpenStreetMap' });
+const baseTopo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxNativeZoom: 17, maxZoom: 19, attribution: '© OpenTopoMap, OpenStreetMap' });
+const hillLayer = L.tileLayer(ESRI + 'Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 15, maxZoom: 19, opacity: 0.75, className: 'hillshadeLayer', attribution: 'Esri' });
+const namesLayer = L.tileLayer(ESRI + 'Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 18, maxZoom: 19, attribution: 'Esri' });
+baseSat.addTo(map); hillLayer.addTo(map); namesLayer.addTo(map);
+let layersCtl = null;
+function buildLayers() {
+  const t = I18N[currentLang];
+  if (layersCtl) layersCtl.remove();
+  const bases = {}; bases[t.layMapSat] = baseSat; bases[t.layMap] = baseOsm; bases[t.layTopo] = baseTopo;
+  const overlays = {}; overlays[t.layHill] = hillLayer; overlays[t.layNames] = namesLayer;
+  layersCtl = L.control.layers(bases, overlays, { collapsed: true }).addTo(map);
+}
+buildLayers();
+
+// ---- saved marks: red rings shown on the main map and the compare map ----
+const MARK_KEY = 'forestscan_marks';
+let marks = [];
+try { marks = JSON.parse(localStorage.getItem(MARK_KEY) || '[]').filter(m => isFinite(m.lat) && isFinite(m.lon)); } catch (e) { marks = []; }
+const marksMainLayer = L.layerGroup().addTo(map);
+let cmpMarksLayer = null, cmpMapRef = null, marksListEl = null, markMode = false;
+function ringLayers(m) {
+  return [L.circleMarker([m.lat, m.lon], { radius: 16, color: '#ff3b30', weight: 3, fill: false }),
+          L.circleMarker([m.lat, m.lon], { radius: 2, color: '#ff3b30', weight: 2, fillOpacity: 1 })];
+}
+function saveMarks() { try { localStorage.setItem(MARK_KEY, JSON.stringify(marks)); } catch (e) {} }
+function renderMarks() {
+  marksMainLayer.clearLayers();
+  if (cmpMarksLayer) cmpMarksLayer.clearLayers();
+  marks.forEach(m => {
+    ringLayers(m).forEach(l => marksMainLayer.addLayer(l));
+    if (cmpMarksLayer) ringLayers(m).forEach(l => cmpMarksLayer.addLayer(l));
+  });
+  if (marksListEl) {
+    const t = I18N[currentLang];
+    marksListEl.innerHTML = '';
+    marks.forEach((m, i) => {
+      const row = document.createElement('div'); row.className = 'markRow';
+      const q = m.lat.toFixed(5) + ',' + m.lon.toFixed(5);
+      row.innerHTML = '<span>📍 ' + m.lat.toFixed(5) + ', ' + m.lon.toFixed(5) + '</span>' +
+        '<a target="_blank" href="https://www.google.com/maps/search/?api=1&query=' + q + '">Maps</a>';
+      const go = document.createElement('button'); go.type = 'button'; go.className = 'small'; go.textContent = t.goBtn;
+      go.addEventListener('click', () => { if (cmpMapRef) cmpMapRef.setView([m.lat, m.lon], 19); });
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'small'; del.textContent = '✕';
+      del.addEventListener('click', () => { marks.splice(i, 1); saveMarks(); renderMarks(); });
+      row.appendChild(go); row.appendChild(del);
+      marksListEl.appendChild(row);
+    });
+  }
+}
+function addMark(lat, lon) { marks.push({ lat, lon }); saveMarks(); renderMarks(); }
+renderMarks();
+let marker = null;
+let picked = null;
+
+const coordInput = document.getElementById('coordInput');
+
+// One field for "lat, lon" (paste straight from Google Maps). Accepts Persian
+// digits, Persian commas, and N/S/E/W letters.
+function parseCoords(str) {
+  let x = String(str).replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c))
+    .replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c))
+    .replace(/٫/g, '.').replace(/[،؛;]/g, ',').replace(/[−–—]/g, '-');
+  const nums = x.match(/-?\d+(?:\.\d+)?/g);
+  if (!nums || nums.length < 2) return null;
+  let lat = parseFloat(nums[0]), lon = parseFloat(nums[1]);
+  if (/\d\s*°?\s*S\b/i.test(x)) lat = -Math.abs(lat);
+  if (/\d\s*°?\s*W\b/i.test(x)) lon = -Math.abs(lon);
+  if (Math.abs(lat) > 90 && Math.abs(lon) <= 90) { const tmp = lat; lat = lon; lon = tmp; }
+  if (!isFinite(lat) || !isFinite(lon) || Math.abs(lat) > 90) return null;
+  return { lat, lon };
+}
+
+let radiusCircle = null;
+function updateRadiusCircle() {
+  if (!picked) return;
+  const r = parseFloat(radiusEl.value) * 1000;
+  if (radiusCircle) radiusCircle.setLatLng(picked).setRadius(r);
+  else radiusCircle = L.circle(picked, { radius: r, color: '#1d9e75', weight: 2, fillOpacity: 0.08, interactive: false }).addTo(map);
+}
+
+// Coordinates are always sanitised here: the map can report longitudes like
+// 616.7 after scrolling around the world several times, and OpenTopography
+// rejects anything outside [-180, 180]. Every path (map tap, typed value,
+// search result, request) goes through these helpers.
+function normLon(lon) { return ((lon + 180) % 360 + 360) % 360 - 180; }
+function clampLat(lat) { return Math.max(-90, Math.min(90, lat)); }
+
+function setPicked(lat, lon, panTo) {
+  lat = parseFloat(lat); lon = parseFloat(lon);
+  if (!isFinite(lat) || !isFinite(lon)) return;
+  lat = clampLat(lat); lon = normLon(lon);
+  picked = L.latLng(lat, lon);
+  if (marker) marker.setLatLng(picked); else marker = L.marker(picked).addTo(map);
+  coordInput.value = lat.toFixed(5) + ', ' + lon.toFixed(5);
+  updateRadiusCircle();
+  if (panTo) map.setView(picked, 11);
+}
+
+map.on('click', e => setPicked(e.latlng.lat, e.latlng.lng, false));
+
+function syncFromInputs() {
+  if (!coordInput.value.trim()) return;
+  const c = parseCoords(coordInput.value);
+  if (c) setPicked(c.lat, c.lon, true);
+  else setStatus(I18N[currentLang].coordBad);
+}
+coordInput.addEventListener('change', syncFromInputs);
+coordInput.addEventListener('paste', () => setTimeout(syncFromInputs, 0));
+
+const searchInput = document.getElementById('placeSearch');
+const suggestionsBox = document.getElementById('suggestions');
+
+async function doSearch() {
+  const q = searchInput.value.trim();
+  if (!q) return;
+  const t = I18N[currentLang];
+  suggestionsBox.innerHTML = '<div>' + t.searching + '</div>';
+  suggestionsBox.style.display = 'block';
+  try {
+    const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=5&accept-language=' + currentLang + '&q=' + encodeURIComponent(q);
+    const res = await fetch(url);
+    const list = await res.json();
+    if (!list.length) { suggestionsBox.innerHTML = '<div>' + t.noResults + '</div>'; return; }
+    suggestionsBox.innerHTML = '';
+    list.forEach(item => {
+      const div = document.createElement('div');
+      div.textContent = item.display_name;
+      div.addEventListener('click', () => {
+        setPicked(parseFloat(item.lat), parseFloat(item.lon), true);
+        suggestionsBox.style.display = 'none';
+        searchInput.value = item.display_name;
+      });
+      suggestionsBox.appendChild(div);
+    });
+  } catch (e) {
+    suggestionsBox.innerHTML = '<div>' + t.searchErr + '</div>';
+  }
+}
+document.getElementById('searchBtn').addEventListener('click', doSearch);
+searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+
+const radiusEl = document.getElementById('radius');
+radiusEl.addEventListener('input', () => { document.getElementById('radiusVal').textContent = radiusEl.value; updateRadiusCircle(); });
+
+const KEY_STORAGE = 'forestscan_apikey';
+const apikeyRow = document.getElementById('apikeyRow');
+const apikeyInput = document.getElementById('apikey');
+const savedKey = localStorage.getItem(KEY_STORAGE);
+if (savedKey) { apikeyInput.value = savedKey; } else { document.getElementById('settings').open = true; }
+normalizeInput(apikeyInput);
+const demTypeEl = document.getElementById('demType');
+demTypeEl.value = localStorage.getItem('forestscan_dem') || 'COP30';
+demTypeEl.addEventListener('change', () => localStorage.setItem('forestscan_dem', demTypeEl.value));
+document.getElementById('clearKeyBtn').addEventListener('click', () => {
+  apikeyInput.value = '';
+  localStorage.removeItem(KEY_STORAGE);
+  apikeyInput.focus();
+});
+
+function setStatus(t) { document.getElementById('status').textContent = t; }
+
+function bboxFromCenter(lat, lon, radiusKm) {
+  lat = clampLat(lat); lon = normLon(lon);
+  const dlat = radiusKm / 111.0;
+  const cosLat = Math.max(0.05, Math.cos(lat * Math.PI / 180));
+  const dlon = Math.min(180, radiusKm / (111.0 * cosLat));
+  return {
+    south: Math.max(-90, lat - dlat), north: Math.min(90, lat + dlat),
+    west: Math.max(-180, lon - dlon), east: Math.min(180, lon + dlon)
+  };
+}
+
+// OpenTopography's API does not send CORS headers, so a direct browser fetch
+// is blocked by the browser before this code ever sees a response (it just
+// throws "Failed to fetch"). No server/deploy step needed: we just try the
+// direct call first, then walk through a list of free public CORS proxies
+// until one of them works. Everything stays in this single HTML file.
+function buildProxyUrls(directUrl) {
+  const enc = encodeURIComponent(directUrl);
+  return [
+    { label: 'مستقیم (بدون پروکسی)', url: directUrl },
+    { label: 'پروکسی codetabs', url: 'https://api.codetabs.com/v1/proxy?quest=' + enc },
+    { label: 'پروکسی allorigins', url: 'https://api.allorigins.win/raw?url=' + enc }
+  ];
+}
+
+async function fetchBuffer(directUrl, onAttempt) {
+  async function attempt(url) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 45000);
+    try {
+      const res = await fetch(url, { signal: ctrl.signal });
+      if (!res.ok) {
+        const txt = await res.text();
+        const e = new Error('HTTP ' + res.status + ': ' + txt.slice(0, 200));
+        e.httpStatus = res.status; e.body = txt;
+        throw e;
+      }
+      const buf = await res.arrayBuffer();
+      if (buf.byteLength < 50) throw new Error('پاسخ خالی برگشت (' + buf.byteLength + ' بایت)');
+      // A proxy that is down/blocked often still returns HTTP 200 with an
+      // HTML error page instead of the actual GeoTIFF bytes. Detect that.
+      const head = new TextDecoder('utf-8', { fatal: false }).decode(buf.slice(0, 20)).trim();
+      if (head.startsWith('<') || head.startsWith('{')) {
+        throw new Error('پاسخ معتبر GeoTIFF نبود، این متن برگشت: ' + new TextDecoder('utf-8', { fatal: false }).decode(buf.slice(0, 150)));
+      }
+      return buf;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  const errors = [];
+  const routes = buildProxyUrls(directUrl);
+  for (let i = 0; i < routes.length; i++) {
+    const { label, url } = routes[i];
+    if (onAttempt) onAttempt(label);
+    try {
+      return await attempt(url);
+    } catch (err) {
+      // The direct call reached the server and it said no (bad key / bad
+      // request). A proxy cannot change that, so stop and explain clearly
+      // instead of piling up unrelated proxy errors.
+      if (i === 0 && err.httpStatus && [400, 401, 403].includes(err.httpStatus)) {
+        const b = String(err.body || '');
+        const ne = new Error(err.message);
+        ne.userMsgKey = (err.httpStatus !== 400 || /api\s*key/i.test(b)) ? 'keyErr' : 'reqErr';
+        throw ne;
+      }
+      errors.push(label + ': ' + (err && err.message ? err.message : String(err)));
+    }
+  }
+  throw new Error(errors.join('\n'));
+}
+
+async function fetchDem(bbox, apiKey, onAttempt, demtype) {
+  const params = new URLSearchParams({
+    demtype: demtype || 'COP30',
+    south: bbox.south,
+    north: bbox.north,
+    west: bbox.west,
+    east: bbox.east,
+    outputFormat: 'GTiff',
+    API_Key: apiKey
+  });
+  const directUrl = 'https://portal.opentopography.org/API/globaldem?' + params.toString();
+  return fetchBuffer(directUrl, onAttempt);
+}
+
+// High-resolution bare-earth elevation (lidar-derived, down to 1 m where it
+// exists) from the free USGS 3DEP service. Covers the USA only, no API key.
+const HI_MAX_PX = 1500;
+function inUSCoverage(lat, lon) {
+  return (lat >= 24 && lat <= 49.6 && lon >= -125 && lon <= -66.5) ||
+         (lat >= 51 && lat <= 71.5 && lon >= -170 && lon <= -129.5) ||
+         (lat >= 18.5 && lat <= 22.5 && lon >= -160.6 && lon <= -154.5);
+}
+async function fetchHiRes(bbox, onAttempt) {
+  const midLat = (bbox.north + bbox.south) / 2;
+  const wM = (bbox.east - bbox.west) * 111320 * Math.cos(midLat * Math.PI / 180);
+  const hM = (bbox.north - bbox.south) * 110540;
+  const scale = Math.min(1, HI_MAX_PX / Math.max(wM, hM));
+  const pw = Math.max(64, Math.round(wM * scale));
+  const ph = Math.max(64, Math.round(hM * scale));
+  const params = new URLSearchParams({
+    bbox: [bbox.west, bbox.south, bbox.east, bbox.north].join(','),
+    bboxSR: '4326', imageSR: '4326', size: pw + ',' + ph,
+    format: 'tiff', pixelType: 'F32', noDataInterpretation: 'esriNoDataMatchAny',
+    interpolation: 'RSP_BilinearInterpolation', f: 'image'
+  });
+  const directUrl = 'https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer/exportImage?' + params.toString();
+  return fetchBuffer(directUrl, onAttempt);
+}
+
+async function loadDem(buffer) {
+  const tiff = await GeoTIFF.fromArrayBuffer(buffer);
+  const image = await tiff.getImage();
+  const width = image.getWidth();
+  const height = image.getHeight();
+  const rasters = await image.readRasters();
+  const data = rasters[0];
+  const arr = new Float64Array(width * height);
+  let validCount = 0;
+  for (let i = 0; i < arr.length; i++) {
+    let v = data[i];
+    if (v < -1000 || v > 9000) v = NaN; else validCount++;
+    arr[i] = v;
+  }
+  if (width === 0 || height === 0 || validCount === 0) {
+    throw new Error('__NO_DATA__');
+  }
+  let bbox = null;
+  try {
+    const b = image.getBoundingBox();
+    if (b && b.length === 4 && b.every(Number.isFinite) && b[2] > b[0] && b[3] > b[1] &&
+        Math.abs(b[0]) <= 180 && Math.abs(b[2]) <= 180 && Math.abs(b[1]) <= 90 && Math.abs(b[3]) <= 90) {
+      bbox = { west: b[0], south: b[1], east: b[2], north: b[3] };
+    }
+  } catch (e) {}
+  return { arr, width, height, bbox, validFrac: validCount / arr.length };
+}
+
+function boxBlur(arr, w, h, radius) {
+  let msum = 0;
+  for (let i = 0; i < arr.length; i++) { const v = arr[i]; if (v === v) msum += v; }
+  const mean = msum / arr.length;
+  const src = new Float64Array(arr.length);
+  for (let i = 0; i < arr.length; i++) { const v = arr[i]; src[i] = v === v ? v : mean; }
+  const tmp = new Float64Array(w * h);
+  const out = new Float64Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const o = y * w;
+    let sum = 0, cnt = 0;
+    for (let x = 0; x <= Math.min(radius, w - 1); x++) { sum += src[o + x]; cnt++; }
+    for (let x = 0; x < w; x++) {
+      tmp[o + x] = sum / cnt;
+      const add = x + radius + 1, rem = x - radius;
+      if (add < w) { sum += src[o + add]; cnt++; }
+      if (rem >= 0) { sum -= src[o + rem]; cnt--; }
+    }
+  }
+  for (let x = 0; x < w; x++) {
+    let sum = 0, cnt = 0;
+    for (let y = 0; y <= Math.min(radius, h - 1); y++) { sum += tmp[y * w + x]; cnt++; }
+    for (let y = 0; y < h; y++) {
+      out[y * w + x] = sum / cnt;
+      const add = y + radius + 1, rem = y - radius;
+      if (add < h) { sum += tmp[add * w + x]; cnt++; }
+      if (rem >= 0) { sum -= tmp[rem * w + x]; cnt--; }
+    }
+  }
+  return out;
+}
+
+function localReliefModel(arr, w, h) {
+  const sigma = Math.max(3, Math.round(Math.min(w, h) / 25));
+  const smooth = boxBlur(arr, w, h, sigma);
+  const lrm = new Float64Array(w * h);
+  const mean = arr.reduce((a, b) => a + (isNaN(b) ? 0 : b), 0) / arr.length;
+  for (let i = 0; i < arr.length; i++) {
+    const v = isNaN(arr[i]) ? mean : arr[i];
+    lrm[i] = v - smooth[i];
+  }
+  return lrm;
+}
+
+function hillshadeArr(arr, w, h, cellSizeM) {
+  const out = new Float64Array(w * h);
+  const az = 315 * Math.PI / 180, alt = 45 * Math.PI / 180;
+  const mean = arr.reduce((a, b) => a + (isNaN(b) ? 0 : b), 0) / arr.length;
+  const g = v => isNaN(v) ? mean : v;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const x0 = Math.max(0, x - 1), x1 = Math.min(w - 1, x + 1);
+      const y0 = Math.max(0, y - 1), y1 = Math.min(h - 1, y + 1);
+      const dzdx = (g(arr[y * w + x1]) - g(arr[y * w + x0])) / (2 * cellSizeM);
+      const dzdy = (g(arr[y1 * w + x]) - g(arr[y0 * w + x])) / (2 * cellSizeM);
+      const slope = Math.atan(Math.sqrt(dzdx * dzdx + dzdy * dzdy));
+      let aspect = Math.atan2(dzdy, -dzdx);
+      let sh = Math.cos(alt) * Math.cos(slope) + Math.sin(alt) * Math.sin(slope) * Math.cos(az - aspect);
+      sh = Math.max(0, Math.min(1, sh));
+      out[y * w + x] = sh;
+    }
+  }
+  return out;
+}
+
+function elevationColor(t) {
+  const stops = [
+    [0.00, [46, 110, 64]],
+    [0.30, [120, 168, 70]],
+    [0.55, [214, 196, 100]],
+    [0.78, [176, 128, 82]],
+    [1.00, [250, 248, 244]]
+  ];
+  for (let i = 0; i < stops.length - 1; i++) {
+    const [t0, c0] = stops[i], [t1, c1] = stops[i + 1];
+    if (t >= t0 && t <= t1) {
+      const f = (t - t0) / (t1 - t0 || 1);
+      return [c0[0] + (c1[0] - c0[0]) * f, c0[1] + (c1[1] - c0[1]) * f, c0[2] + (c1[2] - c0[2]) * f];
+    }
+  }
+  return stops[stops.length - 1][1];
+}
+
+// ---- lidar-style relief view: multi-directional hillshade + colour ramp ----
+const RELIEF_RAMP = [
+  [0.00, [38, 98, 140]], [0.22, [52, 150, 96]], [0.45, [150, 190, 70]],
+  [0.65, [232, 214, 70]], [0.82, [236, 150, 46]], [1.00, [176, 52, 36]]
+];
+const RELIEF_LUT = (() => {
+  const lut = new Uint8ClampedArray(256 * 3);
+  for (let i = 0; i < 256; i++) {
+    const t = i / 255;
+    let c = RELIEF_RAMP[RELIEF_RAMP.length - 1][1];
+    for (let k = 0; k < RELIEF_RAMP.length - 1; k++) {
+      const [t0, c0] = RELIEF_RAMP[k], [t1, c1] = RELIEF_RAMP[k + 1];
+      if (t >= t0 && t <= t1) {
+        const f = (t - t0) / (t1 - t0);
+        c = [c0[0] + (c1[0] - c0[0]) * f, c0[1] + (c1[1] - c0[1]) * f, c0[2] + (c1[2] - c0[2]) * f];
+        break;
+      }
+    }
+    lut[i * 3] = c[0]; lut[i * 3 + 1] = c[1]; lut[i * 3 + 2] = c[2];
+  }
+  return lut;
+})();
+
+function percentileRange(arr, p1, p2) {
+  const step = Math.max(1, Math.floor(arr.length / 60000));
+  const s = [];
+  for (let i = 0; i < arr.length; i += step) if (!isNaN(arr[i])) s.push(arr[i]);
+  if (!s.length) return [0, 1];
+  s.sort((a, b) => a - b);
+  const lo = s[Math.floor(s.length * p1)], hi = s[Math.min(s.length - 1, Math.floor(s.length * p2))];
+  return [lo, hi > lo ? hi : lo + 1];
+}
+
+// Average of 4 light directions (SW..N) so no feature hides parallel to the light.
+function multiHillshade(arr, w, h, cellX, cellY, exag) {
+  let sum = 0, n = 0;
+  for (let i = 0; i < arr.length; i += 97) if (!isNaN(arr[i])) { sum += arr[i]; n++; }
+  const fill = n ? sum / n : 0;
+  const z = Float32Array.from(arr, v => isNaN(v) ? fill : v);
+  const out = new Float32Array(w * h);
+  const alt = 40 * Math.PI / 180, cosA = Math.cos(alt), sinA = Math.sin(alt);
+  const LX = [], LY = [];
+  for (const deg of [225, 270, 315, 360]) {
+    const a = deg * Math.PI / 180;
+    LX.push(Math.sin(a) * cosA); LY.push(Math.cos(a) * cosA);
+  }
+  for (let y = 0; y < h; y++) {
+    const y0 = y > 0 ? y - 1 : 0, y1 = y < h - 1 ? y + 1 : h - 1;
+    for (let x = 0; x < w; x++) {
+      const x0 = x > 0 ? x - 1 : 0, x1 = x < w - 1 ? x + 1 : w - 1;
+      const dzdE = exag * (z[y * w + x1] - z[y * w + x0]) / ((x1 - x0 || 1) * cellX);
+      const dzdN = exag * (z[y0 * w + x] - z[y1 * w + x]) / ((y1 - y0 || 1) * cellY);
+      const inv = 1 / Math.sqrt(1 + dzdE * dzdE + dzdN * dzdN);
+      let s = 0;
+      for (let k = 0; k < 4; k++) s += Math.max(0, (-dzdE * LX[k] - dzdN * LY[k] + sinA) * inv);
+      out[y * w + x] = s / 4;
+    }
+  }
+  return out;
+}
+
+// Catmull-Rom bicubic upsampling: smooth surface (no blocky/blurry pixels) so the
+// hillshade is crisp. It does NOT add real detail, it only interpolates.
+function upsampleBicubic(arr, w, h, f) {
+  const W = Math.round(w * f), H = Math.round(h * f);
+  let sum = 0, n = 0;
+  for (let i = 0; i < arr.length; i += 53) if (!isNaN(arr[i])) { sum += arr[i]; n++; }
+  const fill = n ? sum / n : 0;
+  const src = Float32Array.from(arr, v => isNaN(v) ? fill : v);
+  const wt = t => [ -0.5*t*t*t + t*t - 0.5*t, 1.5*t*t*t - 2.5*t*t + 1, -1.5*t*t*t + 2*t*t + 0.5*t, 0.5*t*t*t - 0.5*t*t ];
+  const xi = new Int32Array(W * 4), xw = new Float32Array(W * 4), xn = new Int32Array(W);
+  for (let X = 0; X < W; X++) {
+    const sx = (X + 0.5) / f - 0.5, x0 = Math.floor(sx), k = wt(sx - x0);
+    for (let j = 0; j < 4; j++) { xi[X*4+j] = Math.min(w - 1, Math.max(0, x0 - 1 + j)); xw[X*4+j] = k[j]; }
+    xn[X] = Math.min(w - 1, Math.max(0, Math.round(sx)));
+  }
+  const out = new Float32Array(W * H);
+  for (let Y = 0; Y < H; Y++) {
+    const sy = (Y + 0.5) / f - 0.5, y0 = Math.floor(sy), ky = wt(sy - y0);
+    const yi = [0,1,2,3].map(j => Math.min(h - 1, Math.max(0, y0 - 1 + j)) * w);
+    const yn = Math.min(h - 1, Math.max(0, Math.round(sy))) * w;
+    for (let X = 0; X < W; X++) {
+      if (isNaN(arr[yn + xn[X]])) { out[Y*W+X] = NaN; continue; }
+      let v = 0;
+      for (let j = 0; j < 4; j++) {
+        const r = yi[j];
+        v += ky[j] * (src[r+xi[X*4]]*xw[X*4] + src[r+xi[X*4+1]]*xw[X*4+1] + src[r+xi[X*4+2]]*xw[X*4+2] + src[r+xi[X*4+3]]*xw[X*4+3]);
+      }
+      out[Y*W+X] = v;
+    }
+  }
+  return { arr: out, w: W, h: H };
+}
+
+// mode: 'shade' | 'elev' | 'lrm' | 'gray'.  Cells without data stay transparent.
+function drawReliefView(canvas, arr, lrm, shade, w, h, mode, ranges) {
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(w, h);
+  const src = mode === 'lrm' ? lrm : arr;
+  const [lo, hi] = mode === 'lrm' ? ranges.lrm : ranges.elev;
+  const span = hi - lo || 1;
+  for (let i = 0; i < arr.length; i++) {
+    const o = i * 4;
+    if (isNaN(arr[i])) { img.data[o + 3] = 0; continue; }
+    if (mode === 'shade') {
+      const v = Math.max(0, Math.min(255, 128 + (shade[i] - 0.64) * 330));
+      img.data[o] = img.data[o + 1] = img.data[o + 2] = v; img.data[o + 3] = 255; continue;
+    }
+    let r, g, b;
+    if (mode === 'gray') { r = g = b = 205; }
+    else {
+      const t = Math.max(0, Math.min(1, (src[i] - lo) / span));
+      const li = Math.round(t * 255) * 3;
+      r = RELIEF_LUT[li]; g = RELIEF_LUT[li + 1]; b = RELIEF_LUT[li + 2];
+    }
+    const light = 0.3 + 0.9 * shade[i];
+    img.data[o] = r * light; img.data[o + 1] = g * light; img.data[o + 2] = b * light; img.data[o + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+function drawTerrain(canvas, arr, shade, w, h) {
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(w, h);
+  let min = Infinity, max = -Infinity;
+  for (const v of arr) { if (!isNaN(v)) { if (v < min) min = v; if (v > max) max = v; } }
+  const range = (max - min) || 1;
+  for (let i = 0; i < arr.length; i++) {
+    const t = (arr[i] - min) / range;
+    const [r, g, b] = elevationColor(t);
+    const light = 0.35 + 0.65 * shade[i];
+    img.data[i * 4] = Math.min(255, r * light);
+    img.data[i * 4 + 1] = Math.min(255, g * light);
+    img.data[i * 4 + 2] = Math.min(255, b * light);
+    img.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  return { min, max };
+}
+
+function drawDiverging(canvas, arr, w, h) {
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(w, h);
+  const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+  const std = Math.sqrt(arr.reduce((a, b) => a + (b - mean) ** 2, 0) / arr.length) || 1;
+  const lim = std * 3;
+  for (let i = 0; i < arr.length; i++) {
+    const t = Math.max(-1, Math.min(1, arr[i] / lim));
+    let r, g, b;
+    if (t < 0) { r = 30 + (1 + t) * 80; g = 60 + (1 + t) * 80; b = 160; }
+    else { r = 200; g = 90 - t * 60; b = 40 - t * 20; }
+    img.data[i * 4] = r; img.data[i * 4 + 1] = g; img.data[i * 4 + 2] = b; img.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+function drawAnomalies(canvas, terrainCanvas, lrmArr, w, h, zThresh) {
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(terrainCanvas, 0, 0);
+  const mean = lrmArr.reduce((a, b) => a + b, 0) / lrmArr.length;
+  const std = Math.sqrt(lrmArr.reduce((a, b) => a + (b - mean) ** 2, 0) / lrmArr.length) || 1;
+  let count = 0;
+  const points = [];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      const z = (lrmArr[i] - mean) / std;
+      if (Math.abs(z) > zThresh) { points.push([x, y]); count++; }
+    }
+  }
+  ctx.fillStyle = 'rgba(230,40,40,0.85)';
+  for (const [x, y] of points) {
+    ctx.beginPath();
+    ctx.arc(x, y, Math.max(1.4, w / 220), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  return count;
+}
+
+function legendBar(el, stops) {
+  el.style.background = 'linear-gradient(90deg,' + stops.join(',') + ')';
+}
+
+
+// ================= pit / mound / line detection =================
+const FEAT_COLORS = { hole: '#ff3b30', mound: '#ffb020', linear: '#3aa0ff' };
+const FEAT_EMOJI = { hole: '🔴', mound: '🟠', linear: '🔵' };
+const HI_CAP_KM = 1.2;
+
+function robustSigma(vals) {
+  const n = vals.length; if (!n) return 1;
+  const a = Float32Array.from(vals, v => Math.abs(v)).sort();
+  return Math.max(1e-6, a[Math.floor(n / 2)] * 1.4826);
+}
+
+// Multi-scale local relief measured in METERS (not pixels), noise-adaptive
+// z-score, then connected blobs filtered by size and shape.
+function detectFeatures(arr, w, h, cellM, bb) {
+  const n = w * h, fine = cellM <= 3;
+  let bad = new Uint8Array(n), anyBad = false;
+  for (let i = 0; i < n; i++) if (isNaN(arr[i])) { bad[i] = 1; anyBad = true; }
+  if (anyBad) {
+    const grown = new Uint8Array(n);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if (!bad[y * w + x]) continue;
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+        const nx = x + dx, ny = y + dy;
+        if (nx >= 0 && nx < w && ny >= 0 && ny < h) grown[ny * w + nx] = 1;
+      }
+    }
+    bad = grown;
+  }
+  const rs = [];
+  for (const m of [10, 25, 60, 150, 300]) {
+    const r = Math.round(m / cellM);
+    if (r >= 2 && r <= Math.min(w, h) / 6 && !rs.includes(r)) rs.push(r);
+    if (rs.length === 3) break;
+  }
+  if (!rs.length) return [];
+  const margin = Math.min(Math.round(Math.min(w, h) * 0.15), Math.max(...rs));
+  const zBest = new Float32Array(n), dBest = new Float32Array(n);
+  const floorSig = fine ? 0.07 : 0.8;
+  const step = Math.max(1, Math.floor(n / 150000));
+  for (const r of rs) {
+    const sm = boxBlur(arr, w, h, r);
+    const d = new Float32Array(n);
+    const sample = [];
+    for (let i = 0; i < n; i++) d[i] = bad[i] ? 0 : arr[i] - sm[i];
+    for (let i = 0; i < n; i += step) if (!bad[i]) sample.push(d[i]);
+    const sig = Math.max(floorSig, robustSigma(Float32Array.from(sample)));
+    for (let i = 0; i < n; i++) {
+      const z = d[i] / sig;
+      if (Math.abs(z) > Math.abs(zBest[i])) { zBest[i] = z; dBest[i] = d[i]; }
+    }
+  }
+  const zT = fine ? 3.5 : 3.0, ampMin = fine ? 0.3 : 2.5;
+  const minPx = fine ? 6 : 2, maxPx = n * 0.02;
+  const lab = new Uint8Array(n), stack = new Int32Array(n);
+  const out = [];
+  for (let y = margin; y < h - margin; y++) for (let x = margin; x < w - margin; x++) {
+    const i = y * w + x;
+    if (lab[i] || bad[i]) continue;
+    const z0 = zBest[i];
+    const sign = z0 <= -zT ? -1 : (z0 >= zT ? 1 : 0);
+    if (!sign) continue;
+    let sp = 0; stack[sp++] = i; lab[i] = 1;
+    let area = 0, sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0;
+    let minx = x, maxx = x, miny = y, maxy = y, pz = 0, pa = 0;
+    while (sp) {
+      const j = stack[--sp]; const jy = (j / w) | 0, jx = j - jy * w;
+      area++; sx += jx; sy += jy; sxx += jx * jx; syy += jy * jy; sxy += jx * jy;
+      if (jx < minx) minx = jx; if (jx > maxx) maxx = jx;
+      if (jy < miny) miny = jy; if (jy > maxy) maxy = jy;
+      const az = Math.abs(zBest[j]); if (az > pz) pz = az;
+      const ad = Math.abs(dBest[j]); if (ad > pa) pa = ad;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        const nx = jx + dx, ny = jy + dy;
+        if (nx < margin || nx >= w - margin || ny < margin || ny >= h - margin) continue;
+        const k = ny * w + nx;
+        if (lab[k] || bad[k]) continue;
+        const zk = zBest[k];
+        if (sign < 0 ? zk <= -zT : zk >= zT) { lab[k] = 1; stack[sp++] = k; }
+      }
+    }
+    if (area < minPx || area > maxPx || pa < ampMin) continue;
+    const cx = sx / area, cy = sy / area;
+    const vxx = sxx / area - cx * cx + 1 / 12, vyy = syy / area - cy * cy + 1 / 12, vxy = sxy / area - cx * cy;
+    const tr = vxx + vyy, det = vxx * vyy - vxy * vxy;
+    const disc = Math.sqrt(Math.max(0, tr * tr / 4 - det));
+    const l1 = tr / 2 + disc, l2 = Math.max(1e-6, tr / 2 - disc);
+    const elong = Math.sqrt(l1 / l2);
+    const fill = area / ((maxx - minx + 1) * (maxy - miny + 1));
+    const diamM = 2 * Math.sqrt(area / Math.PI) * cellM;
+    const lenM = 4 * Math.sqrt(l1) * cellM;
+    let type = null;
+    if (fine && elong >= 3.5 && lenM >= 12) type = 'linear';
+    else if (elong < 2.6 && fill >= 0.4 && (!fine || diamM <= 80)) type = sign < 0 ? 'hole' : 'mound';
+    if (!type) continue;
+    out.push({
+      type, sign, cx, cy, diamM, lenM, ampM: pa, peakZ: pz, fill, cellM,
+      radPx: diamM / cellM / 2, angle: 0.5 * Math.atan2(2 * vxy, vxx - vyy),
+      lat: bb ? bb.north - (cy + 0.5) / h * (bb.north - bb.south) : 0,
+      lon: bb ? bb.west + (cx + 0.5) / w * (bb.east - bb.west) : 0,
+      paired: false
+    });
+  }
+  // a pit right next to a mound (spoil heap) is a classic dug-spot pattern
+  const holes = out.filter(f => f.type === 'hole'), mounds = out.filter(f => f.type === 'mound');
+  for (const a of holes) for (const b of mounds) {
+    const dist = Math.hypot(a.cx - b.cx, a.cy - b.cy) * cellM;
+    if (dist < 2.5 * (a.diamM / 2 + b.diamM / 2)) { a.paired = true; b.paired = true; }
+  }
+  for (const f of out) f.score = f.peakZ * (0.7 + 0.3 * f.fill) * (f.paired ? 1.25 : 1);
+  out.sort((a, b) => b.score - a.score);
+  const top = out.slice(0, 25);
+  top.forEach((f, k) => { f.id = k + 1; f.level = f.score >= 9 ? 3 : (f.score >= 5.5 ? 2 : 1); });
+  return top;
+}
+
+function featTypeLabel(t, f) { return f.type === 'hole' ? t.typeHole : (f.type === 'mound' ? t.typeMound : t.typeLinear); }
+function featDetail(t, f) {
+  const m = ' ' + t.meters;
+  let s;
+  if (f.type === 'linear') s = t.len + ' ≈ ' + Math.round(f.lenM) + m + ' · ' + (f.sign < 0 ? t.depth : t.height) + ' ≈ ' + f.ampM.toFixed(1) + m;
+  else s = t.diam + ' ≈ ' + Math.round(f.diamM) + m + ' · ' + (f.type === 'hole' ? t.depth : t.height) + ' ≈ ' + f.ampM.toFixed(1) + m;
+  if (f.paired) s += ' · ' + t.paired;
+  return s;
+}
+
+function drawFeatureMarks(canvas, terrainCanvas, feats, w, h) {
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(terrainCanvas, 0, 0);
+  const base = Math.max(12, Math.round(Math.max(w, h) / 38));
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const f of feats) {
+    const col = FEAT_COLORS[f.type];
+    const rpx = Math.max(base, f.radPx + 4);
+    ctx.lineWidth = Math.max(2, base / 4); ctx.strokeStyle = col; ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.arc(f.cx, f.cy, rpx, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    const s = base * 0.55;
+    ctx.fillStyle = col; ctx.strokeStyle = col;
+    ctx.beginPath();
+    if (f.type === 'hole') { ctx.moveTo(f.cx - s, f.cy - s * 0.7); ctx.lineTo(f.cx + s, f.cy - s * 0.7); ctx.lineTo(f.cx, f.cy + s * 0.8); ctx.closePath(); ctx.fill(); }
+    else if (f.type === 'mound') { ctx.moveTo(f.cx - s, f.cy + s * 0.7); ctx.lineTo(f.cx + s, f.cy + s * 0.7); ctx.lineTo(f.cx, f.cy - s * 0.8); ctx.closePath(); ctx.fill(); }
+    else { const dx = Math.cos(f.angle) * s * 1.3, dy = Math.sin(f.angle) * s * 1.3; ctx.moveTo(f.cx - dx, f.cy - dy); ctx.lineTo(f.cx + dx, f.cy + dy); ctx.stroke(); }
+    ctx.font = 'bold ' + Math.round(base * 1.15) + 'px sans-serif';
+    const tx = f.cx + rpx + base * 0.6, ty = f.cy - rpx;
+    ctx.lineWidth = 3; ctx.strokeStyle = '#000'; ctx.strokeText(String(f.id), tx, ty);
+    ctx.fillStyle = '#fff'; ctx.fillText(String(f.id), tx, ty);
+  }
+}
+
+function featIcon(f) {
+  const sym = f.type === 'hole' ? '▼' : (f.type === 'mound' ? '▲' : '▬');
+  return L.divIcon({ className: '', iconSize: [28, 28], iconAnchor: [14, 14],
+    html: '<div class="fm ' + f.type + '">' + f.id + '</div>' });
+}
+function featPopup(t, f) {
+  return '<b>#' + f.id + ' ' + featTypeLabel(t, f) + '</b><br>' + featDetail(t, f) + '<br>' + f.lat.toFixed(5) + ', ' + f.lon.toFixed(5);
+}
+
+function buildSummaryCard(t, feats, cellM, usedHi, capped) {
+  const card = document.createElement('div'); card.className = 'mapCard';
+  const fine = cellM <= 3;
+  const cnt = { hole: 0, mound: 0, linear: 0 };
+  feats.forEach(f => cnt[f.type]++);
+  const mTxt = cellM < 10 ? cellM.toFixed(1) : String(Math.round(cellM));
+  let html = '<div class="cap">' + t.sumTitle + '</div>' +
+    '<div class="badge ' + (usedHi ? 'good' : 'warn') + '">' + (usedHi ? t.resHi : t.resLo).replace('{m}', mTxt) + '</div>';
+  html += '<div class="sumLine">' + (feats.length
+    ? t.foundLine.replace('{n}', feats.length).replace('{h}', cnt.hole).replace('{mo}', cnt.mound).replace('{l}', cnt.linear)
+    : t.noneLine) + '</div>';
+  if (!fine) html += '<div class="sumLine" style="color:#ffd98a">' + t.coarseWarn.replace('{m}', Math.round(cellM * 3)) + '</div>';
+  if (!usedHi) html += '<div class="sumLine" style="color:#ffd98a">' + t.forestWarn + '</div>';
+  if (usedHi && capped) html += '<div class="sumLine">' + t.hiCap.replace('{r}', HI_CAP_KM) + '</div>';
+  html += '<div class="sumLine" style="color:#9fcbb5">' + t.metalNote + '</div>';
+  card.innerHTML = html;
+  return card;
+}
+
+function buildFeatureList(t, feats, hooks) {
+  const card = document.createElement('div'); card.className = 'mapCard';
+  card.innerHTML = '<div class="cap">' + t.featTitle + '</div><div class="sub">' + t.featSub + '</div>';
+  feats.forEach(f => {
+    const row = document.createElement('div'); row.className = 'fRow';
+    row.innerHTML = '<span class="fSym">' + FEAT_EMOJI[f.type] + '</span>' +
+      '<div class="fTxt"><b>#' + f.id + ' ' + featTypeLabel(t, f) + '</b><span class="lv l' + f.level + '">' + [t.lvWeak, t.lvMid, t.lvStrong][f.level - 1] + '</span><br><small>' + featDetail(t, f) + '</small></div>';
+    const go = document.createElement('button'); go.type = 'button'; go.className = 'small'; go.textContent = t.goF;
+    go.addEventListener('click', () => hooks.go(f));
+    const mk = document.createElement('button'); mk.type = 'button'; mk.className = 'small'; mk.textContent = '📍';
+    mk.addEventListener('click', () => { hooks.mark(f); mk.textContent = '✓'; mk.disabled = true; });
+    row.appendChild(go); row.appendChild(mk);
+    card.appendChild(row);
+  });
+  return card;
+}
+
+document.getElementById('scanBtn').addEventListener('click', async () => {
+  const t = I18N[currentLang];
+  const apiKey = apikeyInput.value.replace(/[^A-Za-z0-9]/g, '');
+  apikeyInput.value = apiKey;
+  if (!apiKey) { setStatus(t.noApikey); apikeyInput.focus(); return; }
+  if (!picked) { setStatus(t.noPoint); return; }
+  localStorage.setItem(KEY_STORAGE, apiKey);
+
+  const radiusKm = parseFloat(radiusEl.value);
+  const btn = document.getElementById('scanBtn');
+  btn.disabled = true;
+  document.getElementById('results').innerHTML = '';
+
+  try {
+    setStatus(t.downloading);
+    const bbox = bboxFromCenter(picked.lat, picked.lng, radiusKm);
+    let dem = null, usedHi = false;
+    const hiRadius = Math.min(radiusKm, HI_CAP_KM);
+    if (inUSCoverage(picked.lat, picked.lng)) {
+      try {
+        const hb = await fetchHiRes(bboxFromCenter(picked.lat, picked.lng, hiRadius), (label) => setStatus(t.downloading + '\n(USGS 3DEP – ' + label + ')'));
+        setStatus(t.processing);
+        const d = await loadDem(hb);
+        if (d.validFrac < 0.5) throw new Error('mostly no-data');
+        dem = d; usedHi = true;
+        setStatus(t.hiOk);
+      } catch (e) {
+        setStatus(t.hiFail);
+      }
+    }
+    if (!dem) {
+      const buffer = await fetchDem(bbox, apiKey, (label) => setStatus(t.downloading + '\n(' + label + ')'), demTypeEl.value);
+      setStatus(t.processing);
+      dem = await loadDem(buffer);
+    }
+    const { arr, width, height } = dem;
+    const bb = dem.bbox || bbox;
+    const midLat = (bb.north + bb.south) / 2;
+    const cellX = (bb.east - bb.west) * 111320 * Math.cos(midLat * Math.PI / 180) / width;
+    const cellY = (bb.north - bb.south) * 110540 / height;
+    const cellSizeM = (cellX + cellY) / 2;
+    const shade = hillshadeArr(arr, width, height, cellSizeM);
+    const lrm = localReliefModel(arr, width, height);
+
+    const results = document.getElementById('results');
+    const effRadius = usedHi ? hiRadius : radiusKm;
+
+    setStatus(t.detecting);
+    await new Promise(r => setTimeout(r, 30));
+    const feats = detectFeatures(arr, width, height, cellSizeM, bb);
+    results.appendChild(buildSummaryCard(t, feats, cellSizeM, usedHi, usedHi && radiusKm > HI_CAP_KM));
+
+    // ---- satellite vs relief comparison ----
+    const cardC = document.createElement('div'); cardC.className = 'mapCard';
+    cardC.innerHTML =
+      '<div class="cap">' + t.cmpTitle + '</div><div class="sub">' + t.cmpSub + '</div>' +
+      '<div class="cmpWrap"><div class="cmpMap"></div>' +
+      '<span class="cmpTag l">' + t.satTag + '</span><span class="cmpTag r">' + t.reliefTag + '</span>' +
+      '<div class="cmpDivider"></div><input type="range" class="cmpRange" min="0" max="100" value="50"></div>' +
+      '<div class="ctrls">' +
+      '<div class="row"><label>' + t.exagLabel + '</label><input type="range" class="exag" min="1" max="10" step="0.5" value="' + (cellSizeM > 15 ? 5 : 2) + '"><span class="exagVal"></span></div>' +
+      '<div class="row"><label>' + t.colorLabel + '</label><select class="cmode"><option value="shade">' + t.cShade + '</option><option value="elev">' + t.cElev + '</option><option value="lrm">' + t.cLrm + '</option><option value="gray">' + t.cGray + '</option></select>' +
+      '<button type="button" class="small saveBtn">' + t.saveBtn + '</button></div>' +
+      '<div class="row"><label>' + t.enhLabel + '</label><input type="range" class="enh" min="0" max="3" step="0.5" value="1"><span class="enhVal"></span></div>' +
+      '<div class="row"><button type="button" class="small markBtn">' + t.markBtn + '</button><button type="button" class="small featBtn on">' + t.featBtn + '</button></div>' +
+      '<div class="sub markHint" style="display:none;padding:0 0 8px">' + t.markHint + '</div></div>' +
+      '<div class="marksList"></div>' +
+      '<div class="sub">' + t.satAttr + '</div>';
+    results.appendChild(cardC);
+
+    const mapDiv = cardC.querySelector('.cmpMap');
+    const cmpRange = cardC.querySelector('.cmpRange');
+    const divider = cardC.querySelector('.cmpDivider');
+    const exagEl = cardC.querySelector('.exag');
+    const exagVal = cardC.querySelector('.exagVal');
+    const modeEl = cardC.querySelector('.cmode');
+    const bounds = L.latLngBounds([bb.south, bb.west], [bb.north, bb.east]);
+
+    const cmap = L.map(mapDiv, { zoomAnimation: false, attributionControl: false, maxZoom: 20 });
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 18, maxZoom: 20 }).addTo(cmap);
+    cmap.createPane('relief');
+    const reliefPane = cmap.getPane('relief');
+    reliefPane.style.zIndex = 450;
+    cmap.fitBounds(bounds);
+
+    function updateClip() {
+      const pos = cmpRange.value / 100;
+      const size = cmap.getSize();
+      const cx = 22 + (size.x - 44) * pos;
+      const nw = cmap.containerPointToLayerPoint([0, 0]);
+      const se = cmap.containerPointToLayerPoint(size);
+      const xl = cmap.containerPointToLayerPoint([cx, 0]).x;
+      reliefPane.style.clip = 'rect(' + nw.y + 'px,' + se.x + 'px,' + se.y + 'px,' + xl + 'px)';
+      divider.style.left = cx + 'px';
+    }
+    cmap.on('move zoom viewreset resize', updateClip);
+    cmpRange.addEventListener('input', updateClip);
+
+    // smooth the coarse DEM (30 m) so the relief looks crisp, not blocky
+    const upF = Math.max(1, Math.min(8, Math.ceil(1200 / Math.max(width, height))));
+    let V = { arr, w: width, h: height };
+    if (upF > 1) V = upsampleBicubic(arr, width, height, upF);
+    const vLrm = upF > 1 ? localReliefModel(V.arr, V.w, V.h) : lrm;
+    const vCellX = cellX * width / V.w, vCellY = cellY * height / V.h;
+    modeEl.value = cellSizeM > 10 ? 'shade' : 'elev';
+    const reliefCanvas = document.createElement('canvas');
+    const ranges = { elev: percentileRange(V.arr, 0.02, 0.98), lrm: percentileRange(vLrm, 0.02, 0.98) };
+    let overlay = null, lastUrl = null, renderToken = 0;
+    function renderRelief() {
+      const exag = parseFloat(exagEl.value);
+      exagVal.textContent = '×' + exag;
+      const sh = multiHillshade(V.arr, V.w, V.h, vCellX, vCellY, exag);
+      drawReliefView(reliefCanvas, V.arr, vLrm, sh, V.w, V.h, modeEl.value, ranges);
+      reliefPane.style.mixBlendMode = modeEl.value === 'shade' ? 'overlay' : 'normal';
+      const token = ++renderToken;
+      reliefCanvas.toBlob(blob => {
+        if (!blob || token !== renderToken) return;
+        const url = URL.createObjectURL(blob);
+        if (overlay) overlay.setUrl(url);
+        else overlay = L.imageOverlay(url, bounds, { pane: 'relief', interactive: false }).addTo(cmap);
+        if (lastUrl) { const old = lastUrl; setTimeout(() => URL.revokeObjectURL(old), 4000); }
+        lastUrl = url;
+      }, 'image/png');
+    }
+    exagEl.addEventListener('input', () => { exagVal.textContent = '×' + exagEl.value; });
+    exagEl.addEventListener('change', renderRelief);
+    modeEl.addEventListener('change', renderRelief);
+    cardC.querySelector('.saveBtn').addEventListener('click', () => {
+      reliefCanvas.toBlob(blob => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'forest-scan-relief.png';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      }, 'image/png');
+    });
+    // satellite clarity: contrast/saturation boost on the imagery only
+    const enhEl = cardC.querySelector('.enh'), enhVal = cardC.querySelector('.enhVal');
+    function applyEnh() {
+      const k = parseFloat(enhEl.value);
+      enhVal.textContent = '×' + k;
+      cmap.getPane('tilePane').style.filter = k > 0 ? 'contrast(' + (1 + 0.3 * k) + ') saturate(' + (1 + 0.25 * k) + ') brightness(' + (1 + 0.04 * k) + ')' : '';
+    }
+    enhEl.addEventListener('input', applyEnh); applyEnh();
+
+    // marking: tap to drop a red ring (also shown on the main map)
+    cmpMapRef = cmap;
+    cmpMarksLayer = L.layerGroup().addTo(cmap);
+    marksListEl = cardC.querySelector('.marksList');
+    markMode = false;
+    const markBtn = cardC.querySelector('.markBtn'), markHint = cardC.querySelector('.markHint');
+    markBtn.addEventListener('click', () => {
+      markMode = !markMode;
+      markBtn.classList.toggle('on', markMode);
+      markHint.style.display = markMode ? 'block' : 'none';
+      mapDiv.style.cursor = markMode ? 'crosshair' : '';
+    });
+    cmap.on('click', e => { if (markMode) addMark(e.latlng.lat, e.latlng.lng); });
+    renderMarks();
+
+    const featLayer = L.layerGroup().addTo(cmap);
+    feats.forEach(f => {
+      f.marker = L.marker([f.lat, f.lon], { icon: featIcon(f), keyboard: false }).bindPopup(featPopup(t, f));
+      f.marker.addTo(featLayer);
+    });
+    const featBtn = cardC.querySelector('.featBtn');
+    featBtn.addEventListener('click', () => {
+      const on = featBtn.classList.toggle('on');
+      if (on) cmap.addLayer(featLayer); else cmap.removeLayer(featLayer);
+    });
+
+    renderRelief();
+    setTimeout(() => { cmap.invalidateSize(); cmap.fitBounds(bounds); updateClip(); }, 60);
+    updateClip();
+
+    const card1 = document.createElement('div'); card1.className = 'mapCard';
+    card1.innerHTML = '<div class="cap">' + t.map1title + '</div><div class="sub">' + t.map1sub + '</div>';
+    const c1 = document.createElement('canvas'); card1.appendChild(c1);
+    const legend1 = document.createElement('div'); legend1.className = 'legend'; card1.appendChild(legend1);
+    const { min, max } = drawTerrain(c1, arr, shade, width, height);
+    legend1.innerHTML = '<span>' + Math.round(min) + ' ' + t.meters + '</span><div class="bar"></div><span>' + Math.round(max) + ' ' + t.meters + '</span>';
+    legendBar(legend1.querySelector('.bar'), ['#2e6e40', '#78a846', '#d6c464', '#b08052', '#faf8f4']);
+
+    const card2 = document.createElement('div'); card2.className = 'mapCard';
+    card2.innerHTML = '<div class="cap">' + t.map2title + '</div><div class="sub">' + t.map2sub + '</div>';
+    const c2 = document.createElement('canvas'); card2.appendChild(c2);
+    const legend2 = document.createElement('div'); legend2.className = 'legend'; card2.appendChild(legend2);
+    drawDiverging(c2, lrm, width, height);
+    legend2.innerHTML = '<span>' + t.legendLow + '</span><div class="bar"></div><span>' + t.legendHigh + '</span>';
+    legendBar(legend2.querySelector('.bar'), ['#3868c8', '#8090a8', '#c85a28']);
+
+    if (feats.length) {
+      results.appendChild(buildFeatureList(t, feats, {
+        go: f => { cardC.scrollIntoView({ behavior: 'smooth', block: 'start' }); cmap.setView([f.lat, f.lon], 19); if (f.marker) f.marker.openPopup(); },
+        mark: f => addMark(f.lat, f.lon)
+      }));
+    }
+
+    const card3 = document.createElement('div'); card3.className = 'mapCard';
+    const c3 = document.createElement('canvas');
+    drawFeatureMarks(c3, c1, feats, width, height);
+    card3.innerHTML = '<div class="cap">' + t.mapDetTitle + '</div><div class="sub">' + t.mapDetSub + '</div>';
+    card3.appendChild(c3);
+    const legRow = document.createElement('div'); legRow.className = 'legendRow';
+    legRow.innerHTML = '<span>🔴 ▼ ' + t.legHole + '</span><span>🟠 ▲ ' + t.legMound + '</span><span>🔵 ▬ ' + t.legLinear + '</span>';
+    card3.appendChild(legRow);
+    results.appendChild(card3);
+    results.appendChild(card1);
+    results.appendChild(card2);
+
+    const footer = document.createElement('div');
+    footer.className = 'footer';
+    footer.innerHTML =
+      t.footerCoord + ' ' + picked.lat.toFixed(5) + ', ' + picked.lng.toFixed(5) + '<br>' +
+      t.footerRadius + ' ' + effRadius + ' ' + t.footerKm + ' &nbsp;|&nbsp; ' + t.footerPixel + ' ' + Math.round(cellSizeM) + ' ' + t.footerMeters + '<br>' +
+      (usedHi ? t.srcHi : t.footerSource.replace(/Copernicus DEM 30\S*/, demTypeEl.options[demTypeEl.selectedIndex].text)) + '<br>' + (usedHi ? t.noteHi : t.footerNote) + '<br>' + t.metalNote;
+    results.appendChild(footer);
+
+    setStatus(feats.length + ' ' + t.doneFeat);
+  } catch (err) {
+    if (err.message === '__NO_DATA__') {
+      setStatus(t.noData);
+    } else if (err.userMsgKey) {
+      setStatus(t[err.userMsgKey]);
+    } else if (navigator.onLine === false) {
+      setStatus(t.networkErr);
+    } else {
+      setStatus(t.errStatus + '\n' + err.message + t.corsHint);
+    }
+  } finally {
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
