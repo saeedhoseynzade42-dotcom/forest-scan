@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ساخت شبکه‌ی نقاط از پین</title>
+<style>
+:root{--bg:#f4f6f8;--card:#fff;--ink:#1c2733;--mut:#5d6b7a;--line:#d6dde4;--acc:#1f6feb;--acc2:#0f4fb5}
+*{box-sizing:border-box}
+body{margin:0;font-family:Tahoma,system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.7}
+.wrap{max-width:760px;margin:0 auto;padding:14px}
+h1{font-size:20px;margin:6px 0 12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+.card h2{font-size:15px;margin:0 0 6px;color:var(--acc2)}
+label{display:block;font-size:13px;color:var(--mut);margin:8px 0 3px}
+input[type=text],input[type=number],select{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font-size:16px;background:#fff;color:var(--ink)}
+input[type=text],input[type=number]{direction:ltr;text-align:left}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{padding:12px 14px;border:0;border-radius:10px;background:var(--acc);color:#fff;font-size:15px;cursor:pointer;width:100%}
+button.sec{background:#e8eef6;color:var(--acc2)}
+button:disabled{opacity:.4;cursor:default}
+.btns{display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px}
+canvas{width:100%;height:auto;background:#fafcfe;border:1px solid var(--line);border-radius:8px;margin-top:10px}
+.info{font-size:14px;margin-top:8px}
+.err{color:#b42318;font-size:14px;margin-top:6px}
+.chk{display:flex;gap:8px;align-items:center;margin-top:12px;font-size:14px}
+.chk input{width:20px;height:20px}
+small,.hint{color:var(--mut);font-size:13px}
+ol{margin:6px 0 0;padding-inline-start:20px;font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>ساخت شبکه‌ی نقاط از پین</h1>
+
+<div class="card">
+  <h2>۱) مکان پین</h2>
+  <label>مختصات پین (عرض، طول) — از گوگل‌ارث کپی کنید</label>
+  <input type="text" id="ll" placeholder="36.597174, 47.225370" inputmode="decimal">
+  <label>یا فایل پین ذخیره‌شده از گوگل‌ارث (KML)</label>
+  <input type="file" id="kmlfile" accept=".kml,.txt,text/xml,application/vnd.google-earth.kml+xml">
+  <label>پین کجای محدوده باشد؟</label>
+  <select id="anchor">
+    <option value="center">وسط محدوده</option>
+    <option value="sw">گوشه‌ی جنوب‌غربی (شروع از پین)</option>
+  </select>
+</div>
+
+<div class="card">
+  <h2>۲) اندازه و فاصله‌ها (به متر)</h2>
+  <div class="row">
+    <div><label>عرض محدوده (شرق–غرب)</label><input type="number" id="w" value="10" step="any" min="0"></div>
+    <div><label>طول محدوده (شمال–جنوب)</label><input type="number" id="h" value="10" step="any" min="0"></div>
+  </div>
+  <div class="row">
+    <div><label>فاصله‌ی نقطه‌ها روی هر خط</label><input type="number" id="dx" value="0.5" step="any" min="0.001"></div>
+    <div><label>فاصله‌ی بین خط‌ها</label><input type="number" id="dy" value="0.5" step="any" min="0.001"></div>
+  </div>
+  <label>چرخش شبکه (درجه، خلاف جهت عقربه‌های ساعت؛ ۰ = خط‌ها شرق به غرب)</label>
+  <input type="number" id="ang" value="0" step="any">
+  <div class="chk"><input type="checkbox" id="zz"><span>مسیر رفت و برگشت (خط‌ها یکی در میان برعکس)</span></div>
+  <div class="btns"><button id="go">ساخت شبکه</button></div>
+  <div class="err" id="err"></div>
+</div>
+
+<div class="card">
+  <h2>پیش‌نمایش</h2>
+  <canvas id="cv" width="700" height="460"></canvas>
+  <div class="info" id="info">هنوز شبکه‌ای ساخته نشده است.</div>
+  <small>دایره‌ی سبز = اولین نقطه، ضربدر قرمز = پین</small>
+</div>
+
+<div class="card">
+  <h2>۳) خروجی</h2>
+  <label>نمایش نقطه‌ها در گوگل‌ارث</label>
+  <select id="live">
+    <option value="point">زنده، نقطه‌به‌نقطه (با نوار زمان)</option>
+    <option value="line">زنده، خط‌به‌خط (برای شبکه‌های بزرگ)</option>
+    <option value="off">بدون انیمیشن (همه‌ی نقطه‌ها یکجا)</option>
+  </select>
+  <div class="btns">
+    <button class="sec" id="d1" disabled>دانلود فایل GPS Visualizer (TXT)</button>
+    <button class="sec" id="d2" disabled>دانلود فایل گوگل‌ارث (KML)</button>
+    <button class="sec" id="d3" disabled>دانلود جدول X,Y برای سورفر (CSV)</button>
+  </div>
+  <ol>
+    <li>فایل TXT را در سایت gpsvisualizer.com بخش افزودن ارتفاع (Add DEM elevation data) بدهید؛ ارتفاع هر نقطه اضافه می‌شود.</li>
+    <li>فایل KML را در گوگل‌ارث باز کنید. با گزینه‌ی زنده، یک نوار زمان بالای نقشه ظاهر می‌شود؛ دکمه‌ی پخش (▶) را بزنید تا نقطه‌ها به‌ترتیب ظاهر شوند.</li>
+    <li>جدول CSV مختصات محلی (متر) و جغرافیایی هر نقطه را دارد.</li>
+  </ol>
+</div>
+</div>
+
+<script>
+/*CORE*/
+function mPerDeg(latDeg){
+  var p=latDeg*Math.PI/180;
+  var mLat=111132.92-559.82*Math.cos(2*p)+1.175*Math.cos(4*p)-0.0023*Math.cos(6*p);
+  var mLon=111412.84*Math.cos(p)-93.5*Math.cos(3*p)+0.118*Math.cos(5*p);
+  return {mLat:mLat,mLon:mLon};
+}
+function pointName(i){
+  var b=Math.floor(i/999), n=(i%999)+1;
+  var a=String.fromCharCode(65+(Math.floor(b/26)%26)), c=String.fromCharCode(65+(b%26));
+  return a+c+'_'+String(n).padStart(3,'0');
+}
+function normDigits(s){
+  return String(s)
+    .replace(/[۰-۹]/g,function(d){return '۰۱۲۳۴۵۶۷۸۹'.indexOf(d);})
+    .replace(/[٠-٩]/g,function(d){return '٠١٢٣٤٥٦٧٨٩'.indexOf(d);})
+    .replace(/٫/g,'.').replace(/[،;]/g,',');
+}
+function parseLatLon(s){
+  var m=normDigits(s).match(/-?\d+(?:\.\d+)?/g);
+  if(!m||m.length<2) return null;
+  var a=parseFloat(m[0]), b=parseFloat(m[1]);
+  if(Math.abs(a)>90 && Math.abs(b)<=90){var t=a;a=b;b=t;}
+  if(Math.abs(a)>90||Math.abs(b)>180) return null;
+  return {lat:a,lon:b};
+}
+function parseKML(text){
+  var m=text.match(/<coordinates>\s*([^<]+?)\s*<\/coordinates>/i);
+  if(!m) return null;
+  var first=m[1].trim().split(/\s+/)[0].split(',');
+  var lon=parseFloat(first[0]), lat=parseFloat(first[1]);
+  if(isNaN(lat)||isNaN(lon)||Math.abs(lat)>90||Math.abs(lon)>180) return null;
+  return {lat:lat,lon:lon};
+}
+function buildGrid(o){
+  var nx=Math.floor(o.width/o.dx+1e-9)+1;
+  var ny=Math.floor(o.height/o.dy+1e-9)+1;
+  var total=nx*ny;
+  if(total>200000) throw new Error('تعداد نقاط ('+total+') بیشتر از ۲۰۰٬۰۰۰ است؛ فاصله‌ها را بیشتر کنید.');
+  var usedW=(nx-1)*o.dx, usedH=(ny-1)*o.dy;
+  var ox=o.anchor==='center'?-usedW/2:0;
+  var oy=o.anchor==='center'?-usedH/2:0;
+  var th=(o.angle||0)*Math.PI/180, ct=Math.cos(th), st=Math.sin(th);
+  var md=mPerDeg(o.lat);
+  function ll(x,y){
+    var e=x*ct-y*st, n=x*st+y*ct;
+    return {e:e,n:n,lat:o.lat+n/md.mLat,lon:o.lon+e/md.mLon};
+  }
+  var pts=[], idx=0;
+  for(var j=0;j<ny;j++){
+    var rev=o.zigzag&&(j%2===1);
+    for(var k=0;k<nx;k++){
+      var i=rev?nx-1-k:k;
+      var x=ox+i*o.dx, y=oy+j*o.dy;
+      var q=ll(x,y);
+      pts.push({name:pointName(idx++),line:j+1,x:x,y:y,e:q.e,n:q.n,lat:q.lat,lon:q.lon});
+    }
+  }
+  var corners=[ll(ox,oy),ll(ox+usedW,oy),ll(ox+usedW,oy+usedH),ll(ox,oy+usedH)];
+  return {pts:pts,nx:nx,ny:ny,usedW:usedW,usedH:usedH,corners:corners,pin:{lat:o.lat,lon:o.lon}};
+}
+function toGPSV(g){
+  var L=['type\tlatitude\tlongitude\tname\tdesc'];
+  g.pts.forEach(function(p){L.push('W\t'+p.lat.toFixed(9)+'\t'+p.lon.toFixed(9)+'\t'+p.name+'\tGrid Point');});
+  return L.join('\n')+'\n';
+}
+function toCSV(g){
+  var L=['name,line,X_m,Y_m,latitude,longitude'];
+  g.pts.forEach(function(p){L.push([p.name,p.line,p.x.toFixed(3),p.y.toFixed(3),p.lat.toFixed(9),p.lon.toFixed(9)].join(','));});
+  return L.join('\n')+'\n';
+}
+function kmlStamp(s){
+  return new Date(Date.UTC(2000,0,1)+s*1000).toISOString().replace('.000Z','Z');
+}
+function toKML(g,mode){
+  var s='<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document>\n<name>Grid</name>\n'
+   +'<Style id="p"><IconStyle><scale>0.4</scale><Icon><href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href></Icon></IconStyle><LabelStyle><scale>0</scale></LabelStyle></Style>\n'
+   +'<Style id="b"><LineStyle><color>ff0000ff</color><width>2</width></LineStyle></Style>\n';
+  s+='<Placemark><name>Pin</name><Point><coordinates>'+g.pin.lon.toFixed(9)+','+g.pin.lat.toFixed(9)+',0</coordinates></Point></Placemark>\n';
+  var c=g.corners.concat([g.corners[0]]).map(function(q){return q.lon.toFixed(9)+','+q.lat.toFixed(9)+',0';}).join(' ');
+  s+='<Placemark><name>Area</name><styleUrl>#b</styleUrl><LineString><tessellate>1</tessellate><coordinates>'+c+'</coordinates></LineString></Placemark>\n';
+  g.pts.forEach(function(p,i){
+    var ts='';
+    if(mode==='point') ts='<TimeStamp><when>'+kmlStamp(i)+'</when></TimeStamp>';
+    else if(mode==='line') ts='<TimeStamp><when>'+kmlStamp(p.line-1)+'</when></TimeStamp>';
+    s+='<Placemark><name>'+p.name+'</name>'+ts+'<styleUrl>#p</styleUrl><Point><coordinates>'+p.lon.toFixed(9)+','+p.lat.toFixed(9)+',0</coordinates></Point></Placemark>\n';
+  });
+  return s+'</Document></kml>\n';
+}
+/*ENDCORE*/
+
+(function(){
+  if(typeof document==='undefined') return;
+  var $=function(id){return document.getElementById(id);};
+  var G=null;
+  function err(m){$('err').textContent=m||'';}
+  $('kmlfile').addEventListener('change',function(e){
+    var f=e.target.files[0]; if(!f) return;
+    var r=new FileReader();
+    r.onload=function(){
+      var p=parseKML(String(r.result));
+      if(!p){err('در این فایل مختصاتی پیدا نشد.');return;}
+      $('ll').value=p.lat.toFixed(9)+', '+p.lon.toFixed(9); err('');
+    };
+    r.readAsText(f);
+  });
+  function draw(){
+    var cv=$('cv'), c=cv.getContext('2d'), W=cv.width, H=cv.height;
+    c.clearRect(0,0,W,H);
+    var pts=G.pts, minE=1e18,maxE=-1e18,minN=1e18,maxN=-1e18;
+    G.corners.concat(pts).forEach(function(p){
+      if(p.e<minE)minE=p.e; if(p.e>maxE)maxE=p.e; if(p.n<minN)minN=p.n; if(p.n>maxN)maxN=p.n;
+    });
+    if(minE>0)minE=0; if(maxE<0)maxE=0; if(minN>0)minN=0; if(maxN<0)maxN=0;
+    var m=30, sw=Math.max(maxE-minE,1e-6), sh=Math.max(maxN-minN,1e-6);
+    var s=Math.min((W-2*m)/sw,(H-2*m)/sh);
+    var offX=(W-sw*s)/2, offY=(H-sh*s)/2;
+    function X(e){return offX+(e-minE)*s;}
+    function Y(n){return H-(offY+(n-minN)*s);}
+    c.strokeStyle='#d33'; c.lineWidth=1.5; c.beginPath();
+    G.corners.forEach(function(q,i){i?c.lineTo(X(q.e),Y(q.n)):c.moveTo(X(q.e),Y(q.n));});
+    c.closePath(); c.stroke();
+    var r=Math.max(0.8,Math.min(3,Math.sqrt((W*H)/(pts.length||1))*0.18));
+    c.fillStyle='#1f6feb';
+    pts.forEach(function(p){c.beginPath();c.arc(X(p.e),Y(p.n),r,0,6.2832);c.fill();});
+    c.fillStyle='#1a9b3c'; c.beginPath(); c.arc(X(pts[0].e),Y(pts[0].n),Math.max(r+2,5),0,6.2832); c.fill();
+    var px=X(0), py=Y(0); c.strokeStyle='#d00'; c.lineWidth=2.5; c.beginPath();
+    c.moveTo(px-8,py-8);c.lineTo(px+8,py+8);c.moveTo(px+8,py-8);c.lineTo(px-8,py+8);c.stroke();
+    c.fillStyle='#1c2733'; c.font='16px Tahoma'; c.fillText('N ↑',10,20);
+  }
+  $('go').addEventListener('click',function(){
+    err('');
+    var p=parseLatLon($('ll').value);
+    if(!p){err('مختصات پین را درست وارد کنید (مثلاً 36.597174, 47.225370).');return;}
+    var o={lat:p.lat,lon:p.lon,
+      width:parseFloat(normDigits($('w').value)),height:parseFloat(normDigits($('h').value)),
+      dx:parseFloat(normDigits($('dx').value)),dy:parseFloat(normDigits($('dy').value)),
+      angle:parseFloat(normDigits($('ang').value))||0,anchor:$('anchor').value,zigzag:$('zz').checked};
+    if(!(o.width>=0)||!(o.height>=0)||!(o.dx>0)||!(o.dy>0)){err('اندازه و فاصله‌ها باید عدد مثبت باشند.');return;}
+    try{ G=buildGrid(o); }catch(e){ err(e.message); return; }
+    draw();
+    $('info').textContent='تعداد نقطه: '+G.pts.length+' ('+G.nx+' نقطه روی هر خط × '+G.ny+' خط) — ابعاد واقعی: '+G.usedW.toFixed(2)+' × '+G.usedH.toFixed(2)+' متر';
+    ['d1','d2','d3'].forEach(function(id){$(id).disabled=false;});
+  });
+  function save(name,text,mime){
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([text],{type:mime}));
+    a.download=name; document.body.appendChild(a); a.click();
+    setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},1500);
+  }
+  $('d1').onclick=function(){save('grid_for_gpsvisualizer.txt',toGPSV(G),'text/plain');};
+  $('d2').onclick=function(){save('grid.kml',toKML(G,$('live').value),'application/vnd.google-earth.kml+xml');};
+  $('d3').onclick=function(){save('grid_for_surfer.csv',toCSV(G),'text/csv');};
+})();
+</script>
+</body>
+</html>
